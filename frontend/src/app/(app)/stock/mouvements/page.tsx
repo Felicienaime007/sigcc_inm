@@ -13,9 +13,10 @@ import { SearchInput } from "@/components/data/search-input";
 import { MouvementDialog } from "@/components/stock/mouvement-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/i18n/contexte";
 import { formatDateTime, formatNombre } from "@/lib/format";
 import { useOptions } from "@/lib/resource";
-import { TYPES_MOUVEMENT, estEntree, libelleType } from "@/lib/stock";
+import { TYPES_MOUVEMENT, estEntree } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 import type { Mouvement, ProduitRef } from "@/types/stock";
 
@@ -29,25 +30,26 @@ export default function MouvementsPage() {
 
 function Contenu() {
   const { can } = useAuth();
+  const { t } = useT();
   const liste = usePagedList<Mouvement>("stock/mouvements", { ordering: "-date_mouv" });
   const produits = useOptions<ProduitRef>("produits", {}, can("produit.view"));
   const [saisie, setSaisie] = useState(false);
 
   const colonnes: Column<Mouvement>[] = [
-    { key: "date", header: "Date", sortKey: "date_mouv", cell: (m) => formatDateTime(m.date_mouv) },
+    { key: "date", header: "stock.mouvements.col_date", sortKey: "date_mouv", cell: (m) => formatDateTime(m.date_mouv) },
     {
-      key: "type", header: "Mouvement", sortKey: "type_mouvement",
+      key: "type", header: "stock.mouvements.col_mouvement", sortKey: "type_mouvement",
       cell: (m) => (
         <span className={cn(
           "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-          estEntree(m.type_mouvement) ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800",
+          estEntree(m.type_mouvement) ? "bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-200" : "bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200",
         )}>
-          {libelleType(m.type_mouvement)}
+          {t(`stock.mouvements.types.${m.type_mouvement}`)}
         </span>
       ),
     },
     {
-      key: "produit", header: "Produit", sortKey: "produit__code_produit",
+      key: "produit", header: "stock.mouvements.col_produit", sortKey: "produit__code_produit",
       cell: (m) => (
         <div>
           <p className="font-medium">{m.designation}</p>
@@ -56,20 +58,26 @@ function Contenu() {
       ),
     },
     {
-      key: "qte", header: "Quantité", sortKey: "quantite_mouv", className: "text-right tabular-nums",
+      key: "qte", header: "stock.mouvements.col_quantite", sortKey: "quantite_mouv", className: "text-right tabular-nums",
       cell: (m) => (
         <span className={estEntree(m.type_mouvement) ? "text-green-700" : "text-amber-700"}>
           {estEntree(m.type_mouvement) ? "+" : "−"} {formatNombre(m.quantite_mouv)}
         </span>
       ),
     },
-    { key: "empl", header: "Emplacement", cell: (m) => m.libelle_emplacement ?? "—" },
+    { key: "empl", header: "stock.mouvements.col_emplacement", cell: (m) => m.libelle_emplacement ?? "—" },
     {
-      key: "ref", header: "Référence",
+      key: "ref", header: "stock.mouvements.col_reference",
       cell: (m) =>
         m.num_bl ? (
           can("livraison.view") ? (
-            <Link href="/commercial/livraisons" className="hover:underline">{m.num_bl}</Link>
+            <Link
+              href={`/commercial/livraisons?bl=${encodeURIComponent(m.num_bl)}`}
+              title={t("stock.mouvements.voir_bl", { num: m.num_bl })}
+              className="hover:underline"
+            >
+              {m.num_bl}
+            </Link>
           ) : m.num_bl
         ) : (m.reference ?? "—"),
     },
@@ -78,26 +86,27 @@ function Contenu() {
   return (
     <div>
       <PageHeader
-        title="Mouvements de stock"
-        description="Journal de toutes les entrées et sorties. Il ne se modifie pas : une erreur se corrige par un mouvement d'ajustement."
+        title={t("stock.mouvements.titre")}
+        description={t("stock.mouvements.description")}
         action={
           <Can privilege="mouvement.create">
             <Button onClick={() => setSaisie(true)}>
-              <SlidersHorizontal className="mr-2 h-4 w-4" /> Nouveau mouvement
+              <SlidersHorizontal className="mr-2 h-4 w-4" /> {t("stock.mouvements.btn_nouveau")}
             </Button>
           </Can>
         }
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="Référence, produit ou n° de BL…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("stock.mouvements.ph_recherche")} />
         <FilterSelect
-          label="Type" className="w-56" options={TYPES_MOUVEMENT}
+          label={t("stock.mouvements.filtre_type")} className="w-56"
+          options={TYPES_MOUVEMENT.map((o) => ({ value: o.value, label: t(`stock.mouvements.types.${o.value}`) }))}
           value={String(liste.filters.type ?? "")} onChange={(v) => liste.setFilter("type", v)}
         />
         {can("produit.view") && (
           <FilterSelect
-            label="Produit" className="w-60"
+            label={t("stock.mouvements.filtre_produit")} className="w-60"
             options={(produits.data ?? []).map((p) => ({ value: String(p.id_produit), label: `${p.code_produit} — ${p.designation}` }))}
             value={String(liste.filters.produit ?? "")} onChange={(v) => liste.setFilter("produit", v)}
           />
@@ -117,7 +126,7 @@ function Contenu() {
         rowKey={(m) => m.id_mouvement}
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun mouvement."
+        emptyMessage="stock.mouvements.vide"
       />
 
       {saisie && <MouvementDialog onClose={() => setSaisie(false)} />}

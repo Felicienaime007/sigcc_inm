@@ -43,6 +43,9 @@ export interface QueueRow {
   href?: string;
 }
 
+/** Fonction de traduction passée aux constructeurs de lignes (`t("cle", { n })`). */
+export type Traduire = (cle: string, params?: Record<string, string | number>) => string;
+
 export interface QueueDef {
   title: string;
   path: string;
@@ -53,11 +56,11 @@ export interface QueueDef {
   array?: boolean;               // réponse en tableau (non paginée)
   empty: string;
   live?: boolean;
-  row: (item: unknown) => QueueRow;
+  row: (item: unknown, t: Traduire) => QueueRow;
 }
 
 /** Type la fonction `row` sur le vrai type de l'élément. */
-export function queue<T>(def: Omit<QueueDef, "row"> & { row: (item: T) => QueueRow }): QueueDef {
+export function queue<T>(def: Omit<QueueDef, "row"> & { row: (item: T, t: Traduire) => QueueRow }): QueueDef {
   return def as unknown as QueueDef;
 }
 

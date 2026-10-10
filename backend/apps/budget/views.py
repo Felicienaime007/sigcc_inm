@@ -34,6 +34,13 @@ class BudgetViewSet(BaseViewSet):
     queryset = Budget.objects.select_related('organisme').annotate(
         nb_lignes=Count('lignes'),
         total_disponible=Sum('lignes__montant_disponible'),
+        # Engagé sur toutes les lignes (même au-delà de la 1000e affichée)
+        total_engage=Coalesce(
+            Sum('lignes__engagements__montant_engage',
+                filter=Q(lignes__engagements__statut_engagement__in=['VISE', 'SOLDE'])),
+            Value(Decimal('0')),
+            output_field=DecimalField(max_digits=17, decimal_places=2),
+        ),
     )
     serializer_class = BudgetSerializer
     privilege_map = crud_map('budget')

@@ -12,8 +12,8 @@ from apps.commercial.models import Facture
 from apps.authentification.permissions import HasPrivilege
 
 from . import services
-from .models import Recouvrement
-from .serializers import RecouvrementSerializer
+from .models import Recouvrement, Relance
+from .serializers import RecouvrementSerializer, RelanceSerializer
 
 Statut = Recouvrement.Statut
 
@@ -26,14 +26,14 @@ class RecouvrementViewSet(
 ):
     """Un dossier évolue par ses actions (relancer, escalader, actualiser), pas par PUT/PATCH."""
     queryset = Recouvrement.objects.prefetch_related(
-        'lignes__facture__commande__client'
+        'lignes__facture__commande__client', 'relances__auteur'
     )
     serializer_class = RecouvrementSerializer
     permission_classes = [HasPrivilege]
     filter_backends = [SearchFilter, OrderingFilter]
     privilege_map = {
         'list': 'recouvrement.view', 'retrieve': 'recouvrement.view',
-        'impayes': 'recouvrement.view',
+        'impayes': 'recouvrement.view', 'relances': 'recouvrement.view',
         'create': 'recouvrement.create', 'destroy': 'recouvrement.delete',
         'relancer': 'recouvrement.update', 'escalader': 'recouvrement.update',
         'actualiser': 'recouvrement.update',
@@ -60,6 +60,20 @@ class RecouvrementViewSet(
         instance.delete()   # les lignes partent en cascade
 
     # ----------------------------------------------------------------- actions
+    def _tracer(self, dossier, nature, request):
+        """Enregistre la relance effectuée : canal + commentaire + auteur."""
+        canal = (request.data.get('canal') or Relance.Canal.TELEPHONE).strip().upper()
+        if canal not in Relance.Canal.values:
+            raise ValidationError(
+                {'canal': f"Canal invalide. Choix : {', '.join(Relance.Canal.values)}."}
+            )
+        commentaire = (request.data.get('commentaire') or '').strip()
+        auteur = request.user if getattr(request.user, 'pk', None) else None
+        Relance.objects.create(
+            dossier=dossier, niveau=dossier.niveau_relance, nature=nature,
+            canal=canal, commentaire=commentaire, auteur=auteur,
+        )
+
     def _agir(self, pk, fonction):
         self.get_object()   # 404 si absent
         with transaction.atomic():
@@ -76,15 +90,20 @@ class RecouvrementViewSet(
 
     @action(detail=True, methods=['post'])
     def relancer(self, request, pk=None):
-        """Nouvelle relance au même niveau : met à jour la date."""
+        """Nouvelle relance au même niveau : body {canal?, commentaire?}."""
         def f(d):
             d.date_relance = timezone.localdate()
             d.save(update_fields=['date_relance'])
+            self._tracer(d, Relance.Nature.RELANCE, request)
         return self._agir(pk, f)
 
     @action(detail=True, methods=['post'])
     def escalader(self, request, pk=None):
-        """Passe au palier suivant ; le niveau 3 met le dossier en CONTENTIEUX."""
+        """Passe au palier suivant ; le niveau 3 met le dossier en CONTENTIEUX.
+
+        Body {canal?, commentaire?}. Le passage en CONTENTIEUX bloque
+        automatiquement le client (voir services.bloquer_client).
+        """
         def f(d):
             if d.niveau_relance >= 3:
                 raise ValidationError({'detail': "Niveau maximum (3 - contentieux) déjà atteint."})
@@ -93,7 +112,16 @@ class RecouvrementViewSet(
             if d.niveau_relance == 3:
                 d.statut_dossier = Statut.CONTENTIEUX
             d.save(update_fields=['niveau_relance', 'date_relance', 'statut_dossier'])
+            self._tracer(d, Relance.Nature.ESCALADE, request)
+            if d.niveau_relance == 3:
+                services.bloquer_client(d)
         return self._agir(pk, f)
+
+    @action(detail=True, methods=['get'])
+    def relances(self, request, pk=None):
+        """Historique des relances du dossier : qui, quand, niveau, canal, commentaire."""
+        dossier = self.get_object()
+        return Response(RelanceSerializer(dossier.relances.all(), many=True).data)
 
     @action(detail=True, methods=['post'])
     def actualiser(self, request, pk=None):

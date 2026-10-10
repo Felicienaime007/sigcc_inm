@@ -11,6 +11,7 @@ export interface Budget {
   nom_organisme: string;
   nb_lignes: number;
   total_disponible: string | null;   // null tant que le budget n'a aucune ligne
+  total_engage: string;              // agrégé serveur sur toutes les lignes
 }
 
 export interface LigneBudget {
@@ -52,9 +53,9 @@ export interface Engagement {
 }
 
 export const STATUTS_ENGAGEMENT = [
-  { value: "VISE", label: "Visé" },
-  { value: "SOLDE", label: "Soldé" },
-  { value: "ANNULE", label: "Annulé" },
+  { value: "VISE", label: "budget.statuts.vise" },
+  { value: "SOLDE", label: "budget.statuts.solde" },
+  { value: "ANNULE", label: "budget.statuts.annule" },
 ];
 
 /** Dotation d'une ligne = ce qui reste + ce qui est engagé. */

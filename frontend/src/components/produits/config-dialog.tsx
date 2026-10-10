@@ -7,23 +7,25 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
+import { useT } from "@/lib/i18n/contexte";
 import { applyServerErrors } from "@/lib/form-utils";
 import { useCrud } from "@/lib/resource";
 import type { ConfigSerie } from "@/types/produits";
 
-const schema = z.object({
-  prefixe: z.string().trim().max(10, "10 caractères maximum."),
-  depart: z.string().refine((s) => /^\d+$/.test(s.trim()), "Saisissez un entier positif ou nul."),
+const schemaTraduction = (t: (c: string) => string) => z.object({
+  prefixe: z.string().trim().max(10, t("produits.dialog_config.err_max_10")),
+  depart: z.string().refine((s) => /^\d+$/.test(s.trim()), t("produits.dialog_config.err_entier")),
 });
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof schemaTraduction>>;
 
 /** Création (config = null) ou modification d'une série de numérotation. */
 export function ConfigDialog({ config, onClose }: { config: ConfigSerie | null; onClose: () => void }) {
+  const { t } = useT();
   const crud = useCrud<ConfigSerie, Record<string, unknown>>("produits/configs-serie");
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTraduction(t)),
     defaultValues: {
       prefixe: config?.prefixe_courant ?? "",
       depart: String(config?.dernier_numero_valide ?? 0),
@@ -56,24 +58,24 @@ export function ConfigDialog({ config, onClose }: { config: ConfigSerie | null; 
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={config ? `Modifier la série n° ${config.id_config}` : "Nouvelle série de numérotation"}
-      description="Une série porte le compteur de numérotation d'un produit (un produit = une série). Elle est ensuite associée à un produit du catalogue."
+      title={config ? t("produits.dialog_config.titre_modifier", { n: config.id_config }) : t("produits.dialog_config.titre_nouveau")}
+      description={t("produits.dialog_config.description")}
       onSubmit={enregistrer}
       submitting={form.formState.isSubmitting}
       error={erreurServeur}
     >
       <Field
-        label="Préfixe" htmlFor="prefixe" error={erreurs.prefixe?.message}
-        hint="Facultatif, 10 caractères au maximum (ex. QT). Un changement ne s'applique qu'aux lots lancés ensuite."
+        label={t("produits.dialog_config.champ_prefixe")} htmlFor="prefixe" error={erreurs.prefixe?.message}
+        hint={t("produits.dialog_config.hint_prefixe")}
       >
         <Input id="prefixe" autoFocus {...form.register("prefixe")} />
       </Field>
       <Field
-        label="Dernier numéro déjà utilisé" htmlFor="depart" error={erreurs.depart?.message}
+        label={t("produits.dialog_config.champ_depart")} htmlFor="depart" error={erreurs.depart?.message}
         hint={
           config
-            ? "Non modifiable : le compteur n'avance que par le lancement de lots."
-            : "0 pour commencer à 1. Pour reprendre une numérotation existante, saisissez le dernier numéro déjà imprimé."
+            ? t("produits.dialog_config.hint_depart_fixe")
+            : t("produits.dialog_config.hint_depart_nouveau")
         }
       >
         <Input id="depart" inputMode="numeric" disabled={config !== null} {...form.register("depart")} />

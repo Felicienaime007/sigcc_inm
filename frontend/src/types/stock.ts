@@ -11,6 +11,8 @@ export interface ResumeStock {
   quantite_physique: number;
   quantite_reservee: number;
   quantite_disponible: number;
+  seuil_alerte: number;
+  en_alerte: boolean;
 }
 
 export interface LigneStock {
@@ -68,4 +70,31 @@ export interface Mouvement {
   livraison: number | null;
   num_bl: string | null;
   reference: string | null;
+}
+
+export interface Inventaire {
+  id_inventaire: number;
+  code_inventaire: string;
+  magasin: number;
+  code_depot: string;
+  date_debut: string;
+  date_fin: string | null;
+  statut: "BROUILLON" | "EN_COURS" | "VALIDE" | "ANNULE";
+  commentaire: string;
+  nb_lignes: number;
+  nb_comptees: number;
+}
+
+export interface LigneInventaire {
+  id_ligne_inventaire: number;
+  inventaire: number;
+  emplacement: number;
+  libelle_emplacement: string;
+  produit: number;
+  code_produit: string;
+  designation: string;
+  quantite_theorique: number;
+  quantite_comptee: number | null;
+  ecart: number | null;
+  motif: string;
 }

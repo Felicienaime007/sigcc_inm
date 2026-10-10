@@ -12,18 +12,39 @@ class OrganismeSerializer(serializers.ModelSerializer):
         fields = ['id_organisme', 'nom_organisme', 'code_institutionnel']
 
 
+class StatutBlocageField(serializers.IntegerField):
+    """NUMBER(1) Oracle : accepte 0/1 ainsi que les booléens JSON (true/false)."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, bool):
+            return int(data)
+        return super().to_internal_value(data)
+
+
 class SolvabiliteClientSerializer(serializers.ModelSerializer):
+    statut_blocage = StatutBlocageField(min_value=0, max_value=1)
+    # Lecture seule : nom du client privé (le queryset fait déjà select_related('client')).
+    nom_client = serializers.CharField(source='client.nom_client', read_only=True, default=None)
+
     class Meta:
         model = SolvabiliteClient
         fields = [
-            'id_solvabilite', 'client', 'score_credit',
-            'plafond_encours', 'statut_blocage',
+            'id_solvabilite', 'client', 'nom_client', 'score_credit',
+            'plafond_encours', 'statut_blocage', 'blocage_auto',
         ]
+        read_only_fields = ['blocage_auto']
 
     def validate(self, attrs):
         instance = self.instance or SolvabiliteClient()
         for field, value in attrs.items():
             setattr(instance, field, value)
+        # Le score est noté sur 100 (le modèle ne porte pas de contrainte) ;
+        # on le contrôle ici pour ne pas dépendre du seul frontend.
+        score = getattr(instance, 'score_credit', None)
+        if score is not None and not (0 <= score <= 100):
+            raise serializers.ValidationError({
+                'score_credit': 'Le score doit être compris entre 0 et 100.',
+            })
         try:
             instance.full_clean(exclude=None)
         except Exception as exc:

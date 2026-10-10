@@ -20,12 +20,16 @@ class BudgetSerializer(serializers.ModelSerializer):
     total_disponible = serializers.DecimalField(
         max_digits=17, decimal_places=2, read_only=True
     )
+    total_engage = serializers.DecimalField(
+        max_digits=17, decimal_places=2, read_only=True
+    )
 
     class Meta:
         model = Budget
         fields = [
             'id_budget', 'annee_budgetaire', 'montant_alloue',
             'organisme', 'nom_organisme', 'nb_lignes', 'total_disponible',
+            'total_engage',
         ]
     def validate(self, attrs):
         inst = self.instance

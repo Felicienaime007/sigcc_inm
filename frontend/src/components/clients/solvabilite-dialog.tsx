@@ -10,31 +10,34 @@ import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { versNombre } from "@/lib/clients";
 import { applyServerErrors } from "@/lib/form-utils";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud } from "@/lib/resource";
 import type { FicheSolvabilite } from "@/types/clients";
 
-const schema = z.object({
-  score_credit: z
-    .string()
-    .refine(
-      (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0 && versNombre(s) <= 100,
-      "Le score doit être compris entre 0 et 100.",
-    ),
-  plafond_encours: z
-    .string()
-    .refine(
-      (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0,
-      "Le plafond doit être un montant positif ou nul.",
-    ),
-  statut_blocage: z.boolean(),
-});
-type FormValues = z.infer<typeof schema>;
+const schemaTraduction = (t: (c: string) => string) =>
+  z.object({
+    score_credit: z
+      .string()
+      .refine(
+        (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0 && versNombre(s) <= 100,
+        t("clients.svdlg.err_score"),
+      ),
+    plafond_encours: z
+      .string()
+      .refine(
+        (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0,
+        t("clients.svdlg.err_plafond"),
+      ),
+    statut_blocage: z.boolean(),
+  });
+type FormValues = z.infer<ReturnType<typeof schemaTraduction>>;
 
 interface Body {
   client?: number;
   score_credit: number;
   plafond_encours: number;
-  statut_blocage: boolean;
+  /** Oracle NUMBER(1) : 0 = actif, 1 = bloqué (le booléen est rejeté par l'API). */
+  statut_blocage: number;
 }
 
 /** Création (fiche = null) ou modification de la fiche de solvabilité d'un client PRIVE. */
@@ -49,9 +52,10 @@ export function SolvabiliteDialog({
 }) {
   const crud = useCrud<FicheSolvabilite, Body>("clients/solvabilites");
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
+  const { t } = useT();
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTraduction(t)),
     defaultValues: { score_credit: "", plafond_encours: "", statut_blocage: false },
   });
 
@@ -66,7 +70,8 @@ export function SolvabiliteDialog({
         ? {
             score_credit: String(fiche.score_credit ?? ""),
             plafond_encours: String(fiche.plafond_encours ?? ""),
-            statut_blocage: fiche.statut_blocage,
+            // L'API renvoie 0/1 (NUMBER Oracle) : on convertit en booléen pour la case à cocher.
+            statut_blocage: Boolean(fiche.statut_blocage),
           }
         : { score_credit: "", plafond_encours: "", statut_blocage: false },
     );
@@ -77,7 +82,7 @@ export function SolvabiliteDialog({
     const body: Body = {
       score_credit: Math.round(versNombre(v.score_credit) * 100) / 100,
       plafond_encours: Math.round(versNombre(v.plafond_encours) * 100) / 100,
-      statut_blocage: v.statut_blocage,
+      statut_blocage: v.statut_blocage ? 1 : 0,
     };
     try {
       if (fiche) await crud.update.mutateAsync({ id: fiche.id_solvabilite, body });
@@ -94,20 +99,21 @@ export function SolvabiliteDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={fiche ? "Modifier la solvabilité" : "Créer la fiche de solvabilité"}
-      description={`Client : ${clientNom}`}
+      title={fiche ? t("clients.svdlg.titre_modif") : t("clients.svdlg.titre_nouveau")}
+      description={t("clients.svdlg.description", { nom: clientNom })}
       onSubmit={enregistrer}
       submitting={form.formState.isSubmitting}
       error={erreurServeur}
+      submitLabel={t("clients.svdlg.enregistrer")}
     >
-      <Field label="Score de crédit (0 à 100)" htmlFor="score_credit" error={erreurs.score_credit?.message}>
+      <Field label={t("clients.svdlg.score")} htmlFor="score_credit" error={erreurs.score_credit?.message}>
         <Input id="score_credit" inputMode="decimal" autoFocus {...form.register("score_credit")} />
       </Field>
       <Field
-        label="Plafond d'encours (Ar)"
+        label={t("clients.svdlg.plafond")}
         htmlFor="plafond_encours"
         error={erreurs.plafond_encours?.message}
-        hint="Montant maximal de commandes et de factures impayées autorisé pour ce client."
+        hint={t("clients.svdlg.plafond_hint")}
       >
         <Input id="plafond_encours" inputMode="decimal" {...form.register("plafond_encours")} />
       </Field>
@@ -115,15 +121,20 @@ export function SolvabiliteDialog({
         control={form.control}
         name="statut_blocage"
         render={({ field }) => (
-          <label className="flex items-start gap-2 text-sm">
-            <Checkbox checked={field.value} onCheckedChange={(c) => field.onChange(c === true)} className="mt-0.5" />
-            <span>
-              Client bloqué
-              <span className="block text-xs text-muted-foreground">
-                Aucune commande ne peut être validée tant que le client est bloqué.
+          <div>
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox checked={field.value} onCheckedChange={(c) => field.onChange(c === true)} className="mt-0.5" />
+              <span>
+                {t("clients.svdlg.bloque")}
+                <span className="block text-xs text-muted-foreground">
+                  {t("clients.svdlg.bloque_hint")}
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+            {erreurs.statut_blocage?.message && (
+              <p role="alert" className="mt-1 text-xs text-destructive">{erreurs.statut_blocage.message}</p>
+            )}
+          </div>
         )}
       />
     </FormDialog>

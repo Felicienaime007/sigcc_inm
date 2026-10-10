@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { entierPositif } from "@/lib/commercial";
 import { getErrorMessage } from "@/lib/errors";
+import { useT } from "@/lib/i18n/contexte";
 import { formatNombre } from "@/lib/format";
 import { useApiMutation, useOptions } from "@/lib/resource";
 import type { Preparation } from "@/types/commercial";
@@ -20,6 +21,7 @@ const AUCUNE = "__aucune__";
 /** Réservation manuelle de stock, rattachée ou non à une préparation de commande. */
 export function ReservationDialog({ produit, onClose }: { produit?: ProduitRef | null; onClose: () => void }) {
   const { can } = useAuth();
+  const { t } = useT();
   const [produitId, setProduitId] = useState<number | null>(produit?.id_produit ?? null);
   const [quantite, setQuantite] = useState("");
   const [limite, setLimite] = useState("");
@@ -38,7 +40,7 @@ export function ReservationDialog({ produit, onClose }: { produit?: ProduitRef |
 
   const creer = useApiMutation(
     async (body: unknown) => (await api.post("/stock/reservations/", body)).data,
-    { success: "Stock réservé.", silentError: true },
+    { success: t("stock.dialog_reservation.success"), silentError: true },
   );
 
   // Valeur minimale du champ date/heure (heure locale du navigateur)
@@ -46,11 +48,11 @@ export function ReservationDialog({ produit, onClose }: { produit?: ProduitRef |
 
   async function envoyer() {
     setErreur(null);
-    if (produitId === null) return setErreur("Choisissez le produit.");
+    if (produitId === null) return setErreur(t("stock.dialog_reservation.err_produit"));
     const q = entierPositif(quantite);
-    if (q === null) return setErreur("La quantité doit être un entier supérieur à 0.");
-    if (connu && q > dispo) return setErreur(`Quantité supérieure au stock disponible (${formatNombre(dispo)}).`);
-    if (limite && new Date(limite) <= new Date()) return setErreur("La date limite doit être dans le futur.");
+    if (q === null) return setErreur(t("stock.dialog_reservation.err_qte"));
+    if (connu && q > dispo) return setErreur(t("stock.dialog_reservation.err_qte_stock", { dispo: formatNombre(dispo) }));
+    if (limite && new Date(limite) <= new Date()) return setErreur(t("stock.dialog_reservation.err_limite"));
 
     try {
       await creer.mutateAsync({
@@ -69,14 +71,14 @@ export function ReservationDialog({ produit, onClose }: { produit?: ProduitRef |
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title="Réserver du stock"
-      description="Bloque une quantité disponible. Une réservation sans préparation reste active jusqu'à sa libération ou son expiration."
+      title={t("stock.dialog_reservation.titre")}
+      description={t("stock.dialog_reservation.description")}
       onSubmit={(e) => { e?.preventDefault(); void envoyer(); }}
       submitting={creer.isPending}
       error={erreur}
-      submitLabel="Réserver"
+      submitLabel={t("stock.dialog_reservation.submit")}
     >
-      <Field label="Produit">
+      <Field label={t("stock.dialog_reservation.champ_produit")}>
         {produit ? (
           <ProduitFige produit={produit} />
         ) : (
@@ -86,20 +88,20 @@ export function ReservationDialog({ produit, onClose }: { produit?: ProduitRef |
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="Quantité à réserver" htmlFor="quantite"
-          hint={connu ? `Disponible : ${formatNombre(dispo)}` : undefined}
+          label={t("stock.dialog_reservation.champ_quantite")} htmlFor="quantite"
+          hint={connu ? t("stock.dialog_reservation.hint_dispo", { n: formatNombre(dispo) }) : undefined}
         >
           <Input id="quantite" inputMode="numeric" className="text-right" value={quantite}
             onChange={(e) => setQuantite(e.target.value)} />
         </Field>
-        <Field label="Date limite (facultatif)" htmlFor="limite" hint="Par défaut : 7 jours.">
+        <Field label={t("stock.dialog_reservation.champ_limite")} htmlFor="limite" hint={t("stock.dialog_reservation.hint_limite")}>
           <Input id="limite" type="datetime-local" min={minLocal} value={limite}
             onChange={(e) => setLimite(e.target.value)} />
         </Field>
       </div>
 
       {produitId !== null && can("preparation.view") && (
-        <Field label="Préparation de commande (facultatif)" hint="Rattache la réservation à la commande qui sera livrée.">
+        <Field label={t("stock.dialog_reservation.champ_prepa")} hint={t("stock.dialog_reservation.hint_prepa")}>
           <Select
             value={prepId !== null ? String(prepId) : AUCUNE}
             onValueChange={(v) => {
@@ -111,7 +113,7 @@ export function ReservationDialog({ produit, onClose }: { produit?: ProduitRef |
           >
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={AUCUNE}>— Aucune —</SelectItem>
+              <SelectItem value={AUCUNE}>{t("stock.dialog_reservation.opt_aucune")}</SelectItem>
               {dispoPreps.map((p) => (
                 <SelectItem key={p.id_preparation} value={String(p.id_preparation)}>
                   {p.num_commande} — {p.nom_client}

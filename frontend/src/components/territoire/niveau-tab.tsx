@@ -19,6 +19,7 @@ import { HierarchyPicker } from "@/components/territoire/hierarchy-picker";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { applyServerErrors } from "@/lib/form-utils";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud } from "@/lib/resource";
 import { LEVELS, NIVEAUX, TYPES_COMMUNE, type Ligne, type NiveauCfg } from "@/lib/territoire";
 
@@ -30,12 +31,17 @@ interface FormValues {
 
 type Edition = { mode: "create" } | { mode: "edit"; item: Ligne } | null;
 
-const LIBELLE_TYPE = Object.fromEntries(TYPES_COMMUNE.map((t) => [t.value, t.label]));
-
 export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
   const niveau = LEVELS[cfg.index];
   const parent = cfg.index > 0 ? LEVELS[cfg.index - 1] : null;
   const { can } = useAuth();
+  const { t } = useT();
+
+  const LIBELLE_TYPE: Record<string, string> = {
+    URBAINE: t("territoire.niveau.type_urbaine"),
+    RURALE: t("territoire.niveau.type_rurale"),
+  };
+  const TYPES_TRADUITS = TYPES_COMMUNE.map((x) => ({ value: x.value, label: LIBELLE_TYPE[x.value] ?? x.label }));
 
   const liste = usePagedList<Ligne>(niveau.path, { ordering: niveau.nameKey });
   const crud = useCrud<Ligne, Ligne>(niveau.path);
@@ -48,19 +54,19 @@ export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
     () =>
       z
         .object({
-          nom: z.string().trim().min(1, "Le nom est obligatoire.").max(100, "100 caractères maximum."),
+          nom: z.string().trim().min(1, t("territoire.niveau.err_nom")).max(100, t("territoire.niveau.err_nom_max")),
           parent: z.number().nullable(),
           type_commune: z.string(),
         })
         .superRefine((v, ctx) => {
           if (parent && v.parent === null) {
-            ctx.addIssue({ code: "custom", path: ["parent"], message: `${parent.label} obligatoire.` });
+            ctx.addIssue({ code: "custom", path: ["parent"], message: t("territoire.niveau.err_parent", { parent: parent.label }) });
           }
           if (cfg.typeCommune && !v.type_commune) {
-            ctx.addIssue({ code: "custom", path: ["type_commune"], message: "Le type est obligatoire." });
+            ctx.addIssue({ code: "custom", path: ["type_commune"], message: t("territoire.niveau.err_type") });
           }
         }),
-    [parent, cfg.typeCommune],
+    [parent, cfg.typeCommune, t],
   );
 
   const form = useForm<FormValues>({
@@ -147,8 +153,8 @@ export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
           <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={cfg.recherche} />
           {cfg.typeCommune && (
             <FilterSelect
-              label="Type"
-              options={TYPES_COMMUNE}
+              label={t("territoire.niveau.filtre_type")}
+              options={TYPES_TRADUITS}
               value={String(liste.filters.type_commune ?? "")}
               onChange={(v) => liste.setFilter("type_commune", v)}
             />
@@ -159,7 +165,7 @@ export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
           <HierarchyPicker
             upTo={cfg.index - 1}
             allowEmpty
-            emptyLabel="Tous"
+            emptyLabel={t("territoire.niveau.tous")}
             className="flex flex-wrap gap-3"
             itemClassName="w-52"
             onSelectionChange={(sel) => {
@@ -183,16 +189,16 @@ export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
         onPageChange={liste.setPage}
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun enregistrement."
+        emptyMessage="commun.aucun_enregistrement"
         actions={(row) => (
           <>
             {can(`${cfg.priv}.update`) && (
-                <Button variant="ghost" size="icon" title="Modifier" onClick={() => ouvrirEdition(row)}>
+                <Button variant="ghost" size="icon" title={t("commun.modifier")} aria-label={t("commun.modifier")} onClick={() => ouvrirEdition(row)}>
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
             {can(`${cfg.priv}.delete`) && (
-              <Button variant="ghost" size="icon" title="Supprimer" onClick={() => setASupprimer(row)}>
+              <Button variant="ghost" size="icon" title={t("commun.supprimer")} aria-label={t("commun.supprimer")} onClick={() => setASupprimer(row)}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
@@ -211,9 +217,9 @@ export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
       >
         {parent && (
           <Field
-            label={`Rattachement : ${parent.label.toLowerCase()}`}
+            label={t("territoire.niveau.rattachement", { parent: parent.label.toLowerCase() })}
             error={form.formState.errors.parent?.message}
-            hint="Choisissez les niveaux dans l'ordre, du plus haut au plus bas."
+            hint={t("territoire.niveau.hint_rattachement")}
           >
             <Controller
               control={form.control}
@@ -225,24 +231,28 @@ export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
           </Field>
         )}
 
-        <Field label="Nom" htmlFor="nom" error={form.formState.errors.nom?.message}>
+        <Field label={t("territoire.niveau.champ_nom")} htmlFor="nom" error={form.formState.errors.nom?.message}>
           <Input id="nom" autoFocus {...form.register("nom")} />
         </Field>
 
         {cfg.typeCommune && (
-          <Field label="Type de commune" error={form.formState.errors.type_commune?.message}>
+          <Field label={t("territoire.niveau.champ_type")} error={form.formState.errors.type_commune?.message}>
             <Controller
               control={form.control}
               name="type_commune"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={Object.fromEntries(TYPES_TRADUITS.map((x) => [x.value, x.label]))}
+                >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Choisir…" />
+                    <SelectValue placeholder={t("commun.choisir")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {TYPES_COMMUNE.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
+                    {TYPES_TRADUITS.map((x) => (
+                      <SelectItem key={x.value} value={x.value}>
+                        {x.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -257,8 +267,8 @@ export function NiveauTab({ cfg }: { cfg: NiveauCfg }) {
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={cfg.supprimer}
-        description={`« ${aSupprimer ? String(aSupprimer[niveau.nameKey]) : ""} » sera supprimé(e) définitivement. Impossible si des éléments dépendants y sont rattachés (niveaux inférieurs, clients...).`}
-        confirmLabel="Supprimer"
+        description={t("territoire.niveau.suppr_description", { nom: aSupprimer ? String(aSupprimer[niveau.nameKey]) : "" })}
+        confirmLabel={t("commun.supprimer")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}

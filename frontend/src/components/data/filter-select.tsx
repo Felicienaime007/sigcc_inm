@@ -1,6 +1,7 @@
 "use client";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useT } from "@/lib/i18n/contexte";
 
 const TOUS = "__tous__";
 
@@ -19,13 +20,19 @@ export function FilterSelect({
   label: string;
   className?: string;
 }) {
+  const { t } = useT();
+  const tous = t("commun.tous", { label });
   return (
-    <Select value={value || TOUS} onValueChange={(v) => onChange(v === null || v === TOUS ? "" : v)}>
+    <Select
+      value={value || TOUS}
+      onValueChange={(v) => onChange(v === null || v === TOUS ? "" : v)}
+      items={{ [TOUS]: tous, ...Object.fromEntries(options.map((o) => [o.value, o.label])) }}
+    >
       <SelectTrigger className={className}>
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={TOUS}>{label} : tous</SelectItem>
+        <SelectItem value={TOUS}>{tous}</SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>
             {o.label}

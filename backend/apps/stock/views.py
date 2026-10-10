@@ -1,8 +1,9 @@
 from django.db import transaction
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.response import Response
 
@@ -10,10 +11,14 @@ from apps.authentification.mixins import ParamFilterMixin, ProtectedDeleteMixin
 from apps.authentification.permissions import HasPrivilege, crud_map
 
 from . import services
-from .models import Emplacement, LigneStock, MagasinDepot, MouvementStock, ReservationStock
+from .models import (
+    Emplacement, Inventaire, LigneInventaire, LigneStock, MagasinDepot,
+    MouvementStock, ReservationStock,
+)
 from .serializers import (
-    EmplacementSerializer, LigneStockSerializer, MagasinDepotSerializer,
-    MouvementStockSerializer, ReservationStockSerializer, TransfertSerializer,
+    EmplacementSerializer, InventaireSerializer, LigneInventaireSerializer,
+    LigneStockSerializer, MagasinDepotSerializer, MouvementStockSerializer,
+    ReservationStockSerializer, TransfertSerializer,
 )
 
 
@@ -58,20 +63,30 @@ class LigneStockViewSet(
 
     @action(detail=False, methods=['get'])
     def resume(self, request):
-        """Stock cumulé par produit (tous emplacements confondus)."""
+        """Stock cumulé par produit (tous emplacements confondus).
+
+        `?alerte=true` ne garde que les produits sous leur seuil d'alerte.
+        """
         qs = self.filter_queryset(self.get_queryset()).order_by('produit__code_produit')
         lignes = qs.values(
-            'produit_id', 'produit__code_produit', 'produit__designation'
+            'produit_id', 'produit__code_produit', 'produit__designation',
+            'produit__seuil_alerte',
         ).annotate(physique=Sum('quantite_physique'), reservee=Sum('quantite_reservee'))
-        return Response([
-            {
+        resultat = []
+        for l in lignes:
+            disponible = l['physique'] - l['reservee']
+            seuil = l['produit__seuil_alerte'] or 0
+            en_alerte = disponible <= seuil
+            if request.query_params.get('alerte') == 'true' and not en_alerte:
+                continue
+            resultat.append({
                 'produit': l['produit_id'], 'code_produit': l['produit__code_produit'],
                 'designation': l['produit__designation'],
                 'quantite_physique': l['physique'], 'quantite_reservee': l['reservee'],
-                'quantite_disponible': l['physique'] - l['reservee'],
-            }
-            for l in lignes
-        ])
+                'quantite_disponible': disponible,
+                'seuil_alerte': seuil, 'en_alerte': en_alerte,
+            })
+        return Response(resultat)
 
     @action(detail=False, methods=['post'])
     def transferer(self, request):
@@ -139,3 +154,88 @@ class MouvementStockViewSet(
         'livraison': 'livraison_id', 'annee': 'date_mouv__year',
         'du': 'date_mouv__date__gte', 'au': 'date_mouv__date__lte',
     }
+
+
+class InventaireViewSet(BaseViewSet):
+    """Inventaire physique : BROUILLON → EN_COURS (démarrer) → VALIDE (valider)."""
+    queryset = Inventaire.objects.select_related('magasin').annotate(
+        nb_lignes=Count('lignes', distinct=True),
+        nb_comptees=Count('lignes', filter=Q(lignes__quantite_comptee__isnull=False)),
+    ).order_by('-date_debut', '-id_inventaire')   # l'agrégation neutralise l'ordering du Meta
+    serializer_class = InventaireSerializer
+    privilege_map = {
+        **crud_map('inventaire'),
+        'demarrer': 'inventaire.update', 'valider': 'inventaire.valider',
+        'annuler': 'inventaire.update',
+    }
+    search_fields = ['code_inventaire', 'magasin__code_depot']
+    query_filters = {'magasin': 'magasin_id', 'statut': 'statut'}
+
+    def perform_update(self, serializer):
+        if serializer.instance.statut not in (
+            Inventaire.Statut.BROUILLON, Inventaire.Statut.EN_COURS
+        ):
+            raise ValidationError({'detail': "Cet inventaire est figé."})
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.statut != Inventaire.Statut.BROUILLON:
+            raise ValidationError(
+                {'detail': "Seul un inventaire BROUILLON est supprimable."}
+            )
+        instance.delete()
+
+    @action(detail=True, methods=['post'])
+    def demarrer(self, request, pk=None):
+        self.get_object()
+        services.demarrer_inventaire(self.get_object())
+        return Response(self.get_serializer(self.get_object()).data)
+
+    @action(detail=True, methods=['post'])
+    def valider(self, request, pk=None):
+        self.get_object()
+        services.valider_inventaire(self.get_object())
+        return Response(self.get_serializer(self.get_object()).data)
+
+    @action(detail=True, methods=['post'])
+    def annuler(self, request, pk=None):
+        inv = self.get_object()
+        with transaction.atomic():
+            inv = Inventaire.objects.select_for_update().get(pk=inv.pk)
+            if inv.statut not in (Inventaire.Statut.BROUILLON, Inventaire.Statut.EN_COURS):
+                raise ValidationError({'detail': "Cet inventaire est déjà figé."})
+            inv.statut = Inventaire.Statut.ANNULE
+            inv.date_fin = timezone.now()
+            inv.save(update_fields=['statut', 'date_fin'])
+        return Response(self.get_serializer(self.get_object()).data)
+
+
+class LigneInventaireViewSet(
+    ParamFilterMixin,
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Saisie des comptages : seul quantite_comptee (+ motif) est modifiable."""
+    queryset = LigneInventaire.objects.select_related(
+        'produit', 'emplacement__magasin', 'inventaire'
+    )
+    serializer_class = LigneInventaireSerializer
+    permission_classes = [HasPrivilege]
+    filter_backends = [SearchFilter, OrderingFilter]
+    privilege_map = {
+        'list': 'inventaire.view', 'retrieve': 'inventaire.view',
+        'update': 'inventaire.update', 'partial_update': 'inventaire.update',
+    }
+    search_fields = ['produit__code_produit', 'produit__designation']
+    query_filters = {
+        'inventaire': 'inventaire_id', 'produit': 'produit_id',
+        'magasin': 'emplacement__magasin_id',
+    }
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get('ecart') == 'true':
+            qs = qs.exclude(quantite_comptee__isnull=True).exclude(
+                quantite_comptee=F('quantite_theorique')
+            )
+        return qs

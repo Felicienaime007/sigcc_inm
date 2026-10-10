@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/contexte";
 
 interface Props {
   open: boolean;
@@ -20,9 +21,11 @@ interface Props {
 }
 
 export function ConfirmDialog({
-  open, onOpenChange, title, description, confirmLabel = "Confirmer",
+  open, onOpenChange, title, description, confirmLabel,
   destructive, loading, onConfirm,
 }: Props) {
+  const { t } = useT();
+  const libelle = confirmLabel ?? t("commun.confirmer");
   return (
     <AlertDialog open={open} onOpenChange={(o) => !loading && onOpenChange(o)}>
       <AlertDialogContent>
@@ -31,7 +34,7 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Annuler</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{t("commun.annuler")}</AlertDialogCancel>
           <AlertDialogAction
             disabled={loading}
             className={cn(destructive && buttonVariants({ variant: "destructive" }))}
@@ -41,7 +44,7 @@ export function ConfirmDialog({
             }}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {confirmLabel}
+            {libelle}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

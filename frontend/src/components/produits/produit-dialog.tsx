@@ -13,33 +13,38 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { versNombre } from "@/lib/clients";
 import { applyServerErrors } from "@/lib/form-utils";
+import { useT } from "@/lib/i18n/contexte";
 import { useApiMutation, useOptions } from "@/lib/resource";
 import type { Categorie, ConfigSerie, ProduitCatalogue } from "@/types/produits";
 
-const schema = z
+const schemaTraduction = (t: (c: string) => string) => z
   .object({
-    code_produit: z.string().trim().min(1, "Le code produit est obligatoire.").max(50, "50 caractères maximum."),
-    designation: z.string().trim().min(1, "La désignation est obligatoire.").max(150, "150 caractères maximum."),
+    code_produit: z.string().trim().min(1, t("produits.dialog_produit.err_code")).max(50, t("produits.dialog_produit.err_max_50")),
+    designation: z.string().trim().min(1, t("produits.dialog_produit.err_designation")).max(150, t("produits.dialog_produit.err_max_150")),
     prix: z.string().refine(
       (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0,
-      "Le prix doit être positif ou nul.",
+      t("produits.dialog_produit.err_prix"),
+    ),
+    seuil: z.string().refine(
+      (s) => s.trim() === "" || (Number.isFinite(versNombre(s)) && Math.round(versNombre(s)) >= 0),
+      t("produits.dialog_produit.err_seuil"),
     ),
     categorie: z.number().nullable(),
     mode: z.enum(["aucune", "nouvelle", "existante"]),
-    prefixe: z.string().trim().max(10, "10 caractères maximum."),
+    prefixe: z.string().trim().max(10, t("produits.dialog_produit.err_max_10")),
     depart: z.string(),
     config: z.number().nullable(),
   })
   .superRefine((v, ctx) => {
-    if (v.categorie === null) ctx.addIssue({ code: "custom", path: ["categorie"], message: "La catégorie est obligatoire." });
+    if (v.categorie === null) ctx.addIssue({ code: "custom", path: ["categorie"], message: t("produits.dialog_produit.err_categorie") });
     if (v.mode === "nouvelle" && !/^\d+$/.test(v.depart.trim())) {
-      ctx.addIssue({ code: "custom", path: ["depart"], message: "Saisissez un entier positif ou nul." });
+      ctx.addIssue({ code: "custom", path: ["depart"], message: t("produits.dialog_produit.err_entier") });
     }
     if (v.mode === "existante" && v.config === null) {
-      ctx.addIssue({ code: "custom", path: ["config"], message: "Choisissez la série." });
+      ctx.addIssue({ code: "custom", path: ["config"], message: t("produits.dialog_produit.err_serie") });
     }
   });
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof schemaTraduction>>;
 
 interface Envoi {
   id?: number;
@@ -50,19 +55,25 @@ interface Envoi {
 /** Création (produit = null) ou modification d'un produit du catalogue. */
 export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue | null; onClose: () => void }) {
   const { can } = useAuth();
+  const { t } = useT();
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
 
   const serieFigee = produit?.config != null;   // déjà numéroté : la série ne se change plus ici
   const peutCreerSerie = can("config_serie.create");
   const configs = useOptions<ConfigSerie>("produits/configs-serie", {}, can("config_serie.view") && !serieFigee);
   const libres = useMemo(() => (configs.data ?? []).filter((c) => c.code_produit === null), [configs.data]);
+  const libelleSerie = (c: ConfigSerie) =>
+    c.prefixe_courant
+      ? t("produits.dialog_produit.serie_avec_prefixe", { p: c.prefixe_courant, n: c.dernier_numero_valide })
+      : t("produits.dialog_produit.serie_sans_prefixe", { id: c.id_config, n: c.dernier_numero_valide });
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTraduction(t)),
     defaultValues: {
       code_produit: produit?.code_produit ?? "",
       designation: produit?.designation ?? "",
       prix: produit ? String(Number(produit.prix_tarif)) : "",
+      seuil: produit ? String(produit.seuil_alerte ?? 0) : "0",
       categorie: produit?.categorie ?? null,
       mode: "aucune", prefixe: "", depart: "0", config: null,
     },
@@ -91,7 +102,7 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
         throw e;
       }
     },
-    { success: "Produit enregistré.", silentError: true },
+    { success: t("produits.dialog_produit.success"), silentError: true },
   );
 
   const envoyer = form.handleSubmit(async (v) => {
@@ -99,6 +110,7 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
     const corps: Record<string, unknown> = {
       code_produit: v.code_produit, designation: v.designation,
       prix_tarif: Math.round(versNombre(v.prix) * 100) / 100, categorie: v.categorie,
+      seuil_alerte: Math.max(0, Math.round(versNombre(v.seuil || "0"))),
     };
     if (!serieFigee && v.mode === "existante") corps.config = v.config;
     try {
@@ -115,8 +127,8 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
       setErreurServeur(
         applyServerErrors(
           e, form.setError,
-          ["code_produit", "designation", "prix", "categorie", "prefixe", "depart", "config"],
-          { prix_tarif: "prix", prefixe_courant: "prefixe", dernier_numero_valide: "depart" },
+          ["code_produit", "designation", "prix", "seuil", "categorie", "prefixe", "depart", "config"],
+          { prix_tarif: "prix", seuil_alerte: "seuil", prefixe_courant: "prefixe", dernier_numero_valide: "depart" },
         ),
       );
     }
@@ -128,23 +140,23 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={produit ? `Modifier ${produit.code_produit}` : "Nouveau produit"}
+      title={produit ? t("produits.dialog_produit.titre_modifier", { code: produit.code_produit }) : t("produits.dialog_produit.titre_nouveau")}
       onSubmit={envoyer}
       submitting={enregistrer.isPending}
       error={erreurServeur}
       wide
     >
       <div className="grid gap-4 sm:grid-cols-[12rem_1fr]">
-        <Field label="Code produit" htmlFor="code_produit" error={erreurs.code_produit?.message} hint="Unique.">
+        <Field label={t("produits.dialog_produit.champ_code")} htmlFor="code_produit" error={erreurs.code_produit?.message} hint={t("produits.dialog_produit.hint_code")}>
           <Input id="code_produit" autoFocus {...form.register("code_produit")} />
         </Field>
-        <Field label="Désignation" htmlFor="designation" error={erreurs.designation?.message}>
+        <Field label={t("produits.dialog_produit.champ_designation")} htmlFor="designation" error={erreurs.designation?.message}>
           <Input id="designation" {...form.register("designation")} />
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Catégorie" error={erreurs.categorie?.message}>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label={t("produits.dialog_produit.champ_categorie")} error={erreurs.categorie?.message}>
           <Controller
             control={form.control}
             name="categorie"
@@ -155,28 +167,34 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
                 onChange={field.onChange}
                 getValue={(c) => c.id_categorie}
                 getLabel={(c) => c.libelle_categorie}
-                placeholder="Choisir la catégorie…"
+                placeholder={t("produits.dialog_produit.ph_categorie")}
               />
             )}
           />
         </Field>
         <Field
-          label="Prix du tarif (Ar)" htmlFor="prix" error={erreurs.prix?.message}
-          hint={produit ? "Le nouveau tarif ne s'applique qu'aux prochains documents ; les documents existants gardent leur prix." : undefined}
+          label={t("produits.dialog_produit.champ_prix")} htmlFor="prix" error={erreurs.prix?.message}
+          hint={produit ? t("produits.dialog_produit.hint_prix") : undefined}
         >
           <Input id="prix" inputMode="decimal" {...form.register("prix")} />
+        </Field>
+        <Field
+          label={t("produits.dialog_produit.champ_seuil")} htmlFor="seuil" error={erreurs.seuil?.message}
+          hint={t("produits.dialog_produit.hint_seuil")}
+        >
+          <Input id="seuil" inputMode="numeric" {...form.register("seuil")} />
         </Field>
       </div>
 
       <div className="space-y-3 rounded-md border p-3">
-        <p className="text-sm font-medium">Numérotation en série</p>
+        <p className="text-sm font-medium">{t("produits.dialog_produit.section_serie")}</p>
 
         {serieFigee ? (
           <p className="text-sm text-muted-foreground">
-            Ce produit est numéroté en série
-            {produit!.prefixe_courant ? ` (préfixe ${produit!.prefixe_courant})` : ""} ; dernier numéro utilisé :{" "}
-            <span className="font-medium text-foreground">{produit!.dernier_numero_valide}</span>.
-            La série ne se change plus (elle se gère dans l'onglet « Séries de numérotation »).
+            {t("produits.dialog_produit.msg_serie_figee", {
+              complement: produit!.prefixe_courant ? t("produits.dialog_produit.complement_prefixe", { p: produit!.prefixe_courant }) : "",
+              dernier: produit!.dernier_numero_valide ?? "",
+            })}
           </p>
         ) : (
           <>
@@ -187,18 +205,18 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
                 <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
                   <label className="flex items-center gap-2">
                     <input type="radio" checked={field.value === "aucune"} onChange={() => field.onChange("aucune")} />
-                    Produit non numéroté
+                    {t("produits.dialog_produit.mode_aucune")}
                   </label>
                   {peutCreerSerie && (
                     <label className="flex items-center gap-2">
                       <input type="radio" checked={field.value === "nouvelle"} onChange={() => field.onChange("nouvelle")} />
-                      Nouvelle série
+                      {t("produits.dialog_produit.mode_nouvelle")}
                     </label>
                   )}
                   {can("config_serie.view") && (
                     <label className="flex items-center gap-2">
                       <input type="radio" checked={field.value === "existante"} onChange={() => field.onChange("existante")} />
-                      Série existante libre
+                      {t("produits.dialog_produit.mode_existante")}
                     </label>
                   )}
                 </div>
@@ -207,18 +225,18 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
 
             {mode === "nouvelle" && (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Préfixe" htmlFor="prefixe" error={erreurs.prefixe?.message} hint="Facultatif (ex. QT).">
+                <Field label={t("produits.dialog_produit.champ_prefixe")} htmlFor="prefixe" error={erreurs.prefixe?.message} hint={t("produits.dialog_produit.hint_prefixe")}>
                   <Input id="prefixe" {...form.register("prefixe")} />
                 </Field>
-                <Field label="Dernier numéro déjà utilisé" htmlFor="depart" error={erreurs.depart?.message}
-                  hint="0 pour commencer à 1.">
+                <Field label={t("produits.dialog_produit.champ_depart")} htmlFor="depart" error={erreurs.depart?.message}
+                  hint={t("produits.dialog_produit.hint_depart")}>
                   <Input id="depart" inputMode="numeric" {...form.register("depart")} />
                 </Field>
               </div>
             )}
 
             {mode === "existante" && (
-              <Field label="Série libre" error={erreurs.config?.message}>
+              <Field label={t("produits.dialog_produit.champ_serie_libre")} error={erreurs.config?.message}>
                 <Controller
                   control={form.control}
                   name="config"
@@ -227,14 +245,15 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
                       value={field.value !== null ? String(field.value) : ""}
                       onValueChange={(v) => field.onChange(Number(v))}
                       disabled={libres.length === 0}
+                      items={Object.fromEntries(libres.map((c) => [String(c.id_config), libelleSerie(c)]))}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={libres.length === 0 ? "Aucune série libre" : "Choisir la série…"} />
+                        <SelectValue placeholder={libres.length === 0 ? t("produits.dialog_produit.ph_aucune_libre") : t("produits.dialog_produit.ph_choisir")} />
                       </SelectTrigger>
                       <SelectContent>
                         {libres.map((c) => (
                           <SelectItem key={c.id_config} value={String(c.id_config)}>
-                            Série n° {c.id_config}{c.prefixe_courant ? ` · préfixe ${c.prefixe_courant}` : ""} · dernier n° {c.dernier_numero_valide}
+                            {libelleSerie(c)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -243,7 +262,7 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
                 />
                 {libres.length === 0 && !configs.isLoading && (
                   <p className="mt-1 text-xs text-amber-700">
-                    Aucune série libre : demandez à la production d'en créer une (onglet « Séries de numérotation »).
+                    {t("produits.dialog_produit.msg_aucune_libre")}
                   </p>
                 )}
               </Field>

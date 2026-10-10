@@ -16,6 +16,7 @@ import { FormDialog } from "@/components/forms/form-dialog";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud } from "@/lib/resource";
 import { applyServerErrors } from "@/lib/form-utils";
 import { formatNombre } from "@/lib/format";
@@ -26,14 +27,14 @@ interface Categorie {
   nb_produits: number;
 }
 
-const schema = z.object({
+const schemaTraduction = (t: (c: string) => string) => z.object({
   libelle_categorie: z
     .string()
     .trim()
-    .min(1, "Le libellé est obligatoire.")
-    .max(100, "100 caractères maximum."),
+    .min(1, t("produits.categories.err_libelle_obligatoire"))
+    .max(100, t("produits.categories.err_max_100")),
 });
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof schemaTraduction>>;
 
 const PATH = "produits/categories";
 
@@ -49,6 +50,7 @@ export default function CategoriesPage() {
 
 function Contenu() {
   const { can } = useAuth();
+  const { t } = useT();
   const liste = usePagedList<Categorie>(PATH, { ordering: "libelle_categorie" });
   const crud = useCrud<Categorie, FormValues>(PATH);
 
@@ -57,7 +59,7 @@ function Contenu() {
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTraduction(t)),
     defaultValues: { libelle_categorie: "" },
   });
 
@@ -101,11 +103,11 @@ function Contenu() {
 
   const colonnes: Column<Categorie>[] = [
     {
-      key: "libelle", header: "Catégorie", sortKey: "libelle_categorie",
+      key: "libelle", header: "produits.categories.col_categorie", sortKey: "libelle_categorie",
       cell: (c) => <span className="font-medium">{c.libelle_categorie}</span>,
     },
     {
-      key: "nb", header: "Produits", sortKey: "nb_produits", className: "text-right tabular-nums",
+      key: "nb", header: "produits.categories.col_produits", sortKey: "nb_produits", className: "text-right tabular-nums",
       cell: (c) => formatNombre(c.nb_produits),
     },
   ];
@@ -113,12 +115,12 @@ function Contenu() {
   return (
     <div>
       <PageHeader
-        title="Catégories de produits"
-        description="Classement du catalogue de l'Imprimerie Nationale."
+        title={t("produits.categories.titre")}
+        description={t("produits.categories.description")}
         action={
           <Can privilege="categorie.create">
             <Button onClick={ouvrirCreation}>
-              <Plus className="mr-2 h-4 w-4" /> Nouvelle catégorie
+              <Plus className="mr-2 h-4 w-4" /> {t("produits.categories.btn_nouvelle")}
             </Button>
           </Can>
         }
@@ -128,7 +130,7 @@ function Contenu() {
         <SearchInput
           value={liste.searchInput}
           onChange={liste.setSearchInput}
-          placeholder="Rechercher une catégorie…"
+          placeholder={t("produits.categories.ph_recherche")}
         />
       </div>
 
@@ -144,16 +146,16 @@ function Contenu() {
         onPageChange={liste.setPage}
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucune catégorie."
+        emptyMessage="produits.categories.vide"
         actions={(c) => (
           <>
             {can("categorie.update") && (
-              <Button variant="ghost" size="icon" title="Modifier" onClick={() => ouvrirEdition(c)}>
+              <Button variant="ghost" size="icon" title={t("produits.categories.act_modifier")} aria-label={t("produits.categories.act_modifier")} onClick={() => ouvrirEdition(c)}>
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
             {can("categorie.delete") && (
-              <Button variant="ghost" size="icon" title="Supprimer" onClick={() => setASupprimer(c)}>
+              <Button variant="ghost" size="icon" title={t("produits.categories.act_supprimer")} aria-label={t("produits.categories.act_supprimer")} onClick={() => setASupprimer(c)}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
@@ -164,12 +166,12 @@ function Contenu() {
       <FormDialog
         open={edition !== null}
         onOpenChange={(o) => !o && setEdition(null)}
-        title={edition?.mode === "edit" ? "Modifier la catégorie" : "Nouvelle catégorie"}
+        title={edition?.mode === "edit" ? t("produits.categories.dlg_modifier") : t("produits.categories.dlg_nouveau")}
         onSubmit={enregistrer}
         submitting={form.formState.isSubmitting}
         error={erreurServeur}
       >
-        <Field label="Libellé" htmlFor="libelle_categorie" error={form.formState.errors.libelle_categorie?.message}>
+        <Field label={t("produits.categories.champ_libelle")} htmlFor="libelle_categorie" error={form.formState.errors.libelle_categorie?.message}>
           <Input id="libelle_categorie" autoFocus {...form.register("libelle_categorie")} />
         </Field>
       </FormDialog>
@@ -177,9 +179,9 @@ function Contenu() {
       <ConfirmDialog
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
-        title="Supprimer la catégorie ?"
-        description={`« ${aSupprimer?.libelle_categorie ?? ""} » sera définitivement supprimée. Impossible si des produits y sont rattachés.`}
-        confirmLabel="Supprimer"
+        title={t("produits.categories.confirm_suppr_titre")}
+        description={t("produits.categories.confirm_suppr_desc", { libelle: aSupprimer?.libelle_categorie ?? "" })}
+        confirmLabel={t("produits.categories.confirm_suppr_btn")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}

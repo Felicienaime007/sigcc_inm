@@ -19,6 +19,8 @@ import { getErrorMessage } from "@/lib/errors";
 import { applyServerErrors } from "@/lib/form-utils";
 import { formatAr } from "@/lib/format";
 import { useApiMutation, useOptions } from "@/lib/resource";
+import { imprimer } from "@/lib/editions";
+import { useT } from "@/lib/i18n/contexte";
 import type { Facture } from "@/types/commercial";
 import type { Caisse, Livre, Reglement } from "@/types/tresorie";
 
@@ -41,32 +43,32 @@ const VIDE: FormValues = {
   num_feuille: "", attribut_volet: "", num_virement: "",
 };
 
-function creerSchema(mode: "caisse" | "virement", reste: number) {
+function creerSchema(mode: "caisse" | "virement", reste: number, t: (c: string, p?: Record<string, string | number>) => string) {
   return base.superRefine((v, ctx) => {
     const m = versNombre(v.montant);
     const centimes = Math.round(m * 100);
     if (!Number.isFinite(m) || centimes <= 0) {
-      ctx.addIssue({ code: "custom", path: ["montant"], message: "Le montant doit être supérieur à 0." });
+      ctx.addIssue({ code: "custom", path: ["montant"], message: t("tresorerie.reglement.err_montant") });
     } else if (centimes > Math.round(reste * 100)) {
-      ctx.addIssue({ code: "custom", path: ["montant"], message: `Le montant dépasse le reste à payer (${formatAr(reste)}).` });
+      ctx.addIssue({ code: "custom", path: ["montant"], message: t("tresorerie.reglement.err_depassement", { reste: formatAr(reste) }) });
     }
     if (mode === "virement") {
       if (!v.num_virement.trim()) {
-        ctx.addIssue({ code: "custom", path: ["num_virement"], message: "Le numéro de virement du Trésor est obligatoire." });
+        ctx.addIssue({ code: "custom", path: ["num_virement"], message: t("tresorerie.reglement.err_num_virement") });
       }
       return;
     }
     if (!["ESPECES", "CHEQUE"].includes(v.mode_reglement)) {
-      ctx.addIssue({ code: "custom", path: ["mode_reglement"], message: "Choisissez le mode de paiement." });
+      ctx.addIssue({ code: "custom", path: ["mode_reglement"], message: t("tresorerie.reglement.err_mode") });
     }
-    if (v.caisse === null) ctx.addIssue({ code: "custom", path: ["caisse"], message: "La caisse est obligatoire." });
-    if (v.livre === null) ctx.addIssue({ code: "custom", path: ["livre"], message: "Le carnet de quittances est obligatoire." });
+    if (v.caisse === null) ctx.addIssue({ code: "custom", path: ["caisse"], message: t("tresorerie.reglement.err_caisse") });
+    if (v.livre === null) ctx.addIssue({ code: "custom", path: ["livre"], message: t("tresorerie.reglement.err_carnet") });
     const f = entierPositif(v.num_feuille);
     if (f === null || f > 50) {
-      ctx.addIssue({ code: "custom", path: ["num_feuille"], message: "La feuille est comprise entre 1 et 50." });
+      ctx.addIssue({ code: "custom", path: ["num_feuille"], message: t("tresorerie.reglement.err_feuille") });
     }
     if (!VOLETS.includes(v.attribut_volet)) {
-      ctx.addIssue({ code: "custom", path: ["attribut_volet"], message: "Choisissez le volet (A à E)." });
+      ctx.addIssue({ code: "custom", path: ["attribut_volet"], message: t("tresorerie.reglement.err_volet") });
     }
   });
 }
@@ -101,8 +103,9 @@ export function ReglementDialog({
   facture: Facture;
   mode: "caisse" | "virement";
 }) {
+  const { t } = useT();
   const reste = Number(facture.reste_a_payer);
-  const schema = useMemo(() => creerSchema(mode, reste), [mode, reste]);
+  const schema = useMemo(() => creerSchema(mode, reste, t), [mode, reste, t]);
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: VIDE });
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
 
@@ -123,7 +126,7 @@ export function ReglementDialog({
       setErreurServeur(null);
     } catch (e) {
       form.setValue("livre", null);   // carnet épuisé ou introuvable : il faut en choisir un autre
-      setErreurServeur(getErrorMessage(e, "Carnet indisponible : choisissez-en un autre."));
+      setErreurServeur(getErrorMessage(e, t("tresorerie.reglement.carnet_indisponible")));
     }
   }
 
@@ -169,8 +172,24 @@ export function ReglementDialog({
       if (mode === "caisse") ecrireMemo(v.caisse, v.livre);
       toast.success(
         r.quittance
-          ? `Encaissé ${formatAr(r.montant_regle)} — quittance ${r.quittance.numero_livre} / feuille ${r.quittance.num_feuille} / volet ${r.quittance.attribut_volet}`
-          : `Virement de ${formatAr(r.montant_regle)} enregistré.`,
+          ? t("tresorerie.reglement.toast_encaisse", {
+              montant: formatAr(r.montant_regle),
+              carnet: r.quittance.numero_livre,
+              feuille: r.quittance.num_feuille,
+              volet: r.quittance.attribut_volet,
+            })
+          : t("tresorerie.reglement.toast_virement", { montant: formatAr(r.montant_regle) }),
+        {
+          duration: 10_000,
+          action: {
+            label: t("tresorerie.reglement.imprimer_recu"),
+            onClick: () =>
+              void imprimer(`reglement/${r.id_reglement}`, {
+                generation: t("tresorerie.editions.generation"),
+                document: t("tresorerie.editions.err_document"),
+              }),
+          },
+        },
       );
       onOpenChange(false);
     } catch (e) {
@@ -191,11 +210,11 @@ export function ReglementDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={mode === "virement" ? "Enregistrer un virement du Trésor" : "Encaisser une facture"}
+      title={mode === "virement" ? t("tresorerie.reglement.titre_virement") : t("tresorerie.reglement.titre_caisse")}
       onSubmit={envoyer}
       submitting={creer.isPending}
       error={erreurServeur}
-      submitLabel={mode === "virement" ? "Enregistrer le virement" : "Valider l'encaissement"}
+      submitLabel={mode === "virement" ? t("tresorerie.reglement.submit_virement") : t("tresorerie.reglement.submit_caisse")}
       wide
     >
       <div className="rounded-md border bg-muted/30 p-3 text-sm">
@@ -205,54 +224,54 @@ export function ReglementDialog({
             <p className="text-xs text-muted-foreground">{facture.nom_client}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-muted-foreground">Reste à payer</p>
+            <p className="text-xs text-muted-foreground">{t("tresorerie.reglement.reste")}</p>
             <p className="text-lg font-semibold tabular-nums">{formatAr(reste)}</p>
           </div>
         </div>
       </div>
 
       <Field
-        label="Montant reçu (Ar)"
+        label={t("tresorerie.reglement.champ_montant")}
         htmlFor="montant"
         error={erreurs.montant?.message}
-        hint="Modifiable pour un acompte : le solde pourra être encaissé ensuite."
+        hint={t("tresorerie.reglement.hint_montant")}
       >
         <div className="flex gap-2">
           <Input id="montant" inputMode="decimal" autoFocus {...form.register("montant")} />
           <Button type="button" variant="outline" onClick={() => form.setValue("montant", String(reste))}>
-            Solde
+            {t("tresorerie.reglement.solde")}
           </Button>
         </div>
       </Field>
 
       {mode === "virement" ? (
         <Field
-          label="N° du virement du Trésor"
+          label={t("tresorerie.reglement.champ_num_virement")}
           htmlFor="num_virement"
           error={erreurs.num_virement?.message}
-          hint="Référence de l'avis de virement : elle ne peut être utilisée qu'une seule fois."
+          hint={t("tresorerie.reglement.hint_virement")}
         >
           <Input id="num_virement" {...form.register("num_virement")} />
         </Field>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Mode de paiement" error={erreurs.mode_reglement?.message}>
+            <Field label={t("tresorerie.reglement.champ_mode")} error={erreurs.mode_reglement?.message}>
               <Controller
                 control={form.control}
                 name="mode_reglement"
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value} onValueChange={field.onChange} items={{ ESPECES: t("tresorerie.modes.especes"), CHEQUE: t("tresorerie.modes.cheque") }}>
                     <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ESPECES">Espèces</SelectItem>
-                      <SelectItem value="CHEQUE">Chèque</SelectItem>
+                      <SelectItem value="ESPECES">{t("tresorerie.modes.especes")}</SelectItem>
+                      <SelectItem value="CHEQUE">{t("tresorerie.modes.cheque")}</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
               />
             </Field>
-            <Field label="Caisse" error={erreurs.caisse?.message}>
+            <Field label={t("tresorerie.reglement.champ_caisse")} error={erreurs.caisse?.message}>
               <Controller
                 control={form.control}
                 name="caisse"
@@ -263,7 +282,7 @@ export function ReglementDialog({
                     onChange={field.onChange}
                     getValue={(c) => c.id_caisse}
                     getLabel={(c) => `${c.code_caisse} — ${c.libelle_caisse}`}
-                    placeholder="Choisir la caisse…"
+                    placeholder={t("tresorerie.reglement.choisir_caisse")}
                   />
                 )}
               />
@@ -271,9 +290,9 @@ export function ReglementDialog({
           </div>
 
           <div className="rounded-md border p-3">
-            <p className="mb-3 text-sm font-medium">Quittance remise au client</p>
+            <p className="mb-3 text-sm font-medium">{t("tresorerie.reglement.quittance_titre")}</p>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Carnet" error={erreurs.livre?.message}>
+              <Field label={t("tresorerie.reglement.champ_carnet")} error={erreurs.livre?.message}>
                 <Controller
                   control={form.control}
                   name="livre"
@@ -287,23 +306,27 @@ export function ReglementDialog({
                         if (id !== null) void suggerer(id);
                       }}
                       getValue={(l) => l.id_livre}
-                      getLabel={(l) => `${l.numero_livre} (${l.nb_restantes} volets restants)`}
-                      placeholder="Carnet en cours…"
+                      getLabel={(l) => t("tresorerie.reglement.carnet_label", { numero: l.numero_livre, restants: l.nb_restantes })}
+                      placeholder={t("tresorerie.reglement.carnet_encours")}
                     />
                   )}
                 />
               </Field>
-              <Field label="Feuille (1 à 50)" htmlFor="num_feuille" error={erreurs.num_feuille?.message}>
+              <Field label={t("tresorerie.reglement.champ_feuille")} htmlFor="num_feuille" error={erreurs.num_feuille?.message}>
                 <Input id="num_feuille" inputMode="numeric" {...form.register("num_feuille")} />
               </Field>
-              <Field label="Volet" error={erreurs.attribut_volet?.message}>
+              <Field label={t("tresorerie.reglement.champ_volet")} error={erreurs.attribut_volet?.message}>
                 <div className="flex gap-2">
                   <Controller
                     control={form.control}
                     name="attribut_volet"
                     render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className="w-full"><SelectValue placeholder="A à E" /></SelectTrigger>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={Object.fromEntries(VOLETS.map((v) => [v, v]))}
+                      >
+                        <SelectTrigger className="w-full"><SelectValue placeholder={t("tresorerie.reglement.ph_volet")} /></SelectTrigger>
                         <SelectContent>
                           {VOLETS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                         </SelectContent>
@@ -311,7 +334,7 @@ export function ReglementDialog({
                     )}
                   />
                   <Button
-                    type="button" variant="outline" size="icon" title="Suggérer le prochain volet libre"
+                    type="button" variant="outline" size="icon" title={t("tresorerie.reglement.suggerer")} aria-label={t("tresorerie.reglement.suggerer")}
                     disabled={livreChoisi === null}
                     onClick={() => livreChoisi !== null && void suggerer(livreChoisi)}
                   >
@@ -321,7 +344,7 @@ export function ReglementDialog({
               </Field>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Vérifiez que la feuille et le volet correspondent à la quittance physique que vous remettez.
+              {t("tresorerie.reglement.hint_quittance")}
             </p>
           </div>
         </>

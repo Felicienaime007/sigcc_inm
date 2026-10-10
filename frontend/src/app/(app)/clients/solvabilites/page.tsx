@@ -14,6 +14,7 @@ import { SearchInput } from "@/components/data/search-input";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { formatAr, formatNombre } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 import type { SolvabiliteListe } from "@/types/clients";
 
 export default function SolvabilitesPage() {
@@ -26,41 +27,46 @@ export default function SolvabilitesPage() {
 
 function Contenu() {
   const { can } = useAuth();
+  const { t } = useT();
   const liste = usePagedList<SolvabiliteListe>("clients/solvabilites", { ordering: "-id_solvabilite" });
   const [edition, setEdition] = useState<SolvabiliteListe | null>(null);
 
   const colonnes: Column<SolvabiliteListe>[] = [
     {
-      key: "client", header: "Client PRIVE",
+      key: "client", header: "clients.solv.col_client",
       cell: (s) => (
         <Link href={`/clients/${s.client}`} className="font-medium hover:underline">
-          {s.nom_client}
+          {s.nom_client ?? "—"}
         </Link>
       ),
     },
-    { key: "score", header: "Score", className: "text-right tabular-nums", cell: (s) => `${formatNombre(s.score_credit)} / 100` },
-    { key: "plafond", header: "Plafond d'encours", className: "text-right tabular-nums", cell: (s) => formatAr(s.plafond_encours) },
+    { key: "score", header: "clients.solv.col_score", className: "text-right tabular-nums", cell: (s) => t("clients.solv.score_valeur", { v: formatNombre(s.score_credit) }) },
+    { key: "plafond", header: "clients.solv.col_plafond", className: "text-right tabular-nums", cell: (s) => formatAr(s.plafond_encours) },
     {
-      key: "statut", header: "Statut",
+      key: "statut", header: "clients.solv.col_statut",
       cell: (s) =>
-        s.statut_blocage ? <Badge variant="destructive">Bloqué</Badge> : <Badge variant="secondary">Actif</Badge>,
+        s.statut_blocage ? (
+          <Badge variant="destructive" title={s.blocage_auto ? t("clients.detail.bloque_auto_hint") : t("clients.detail.bloque_manuel_hint")}>
+            {t("clients.detail.bloque", { auto: s.blocage_auto ? t("clients.detail.bloque_auto") : "" })}
+          </Badge>
+        ) : <Badge variant="secondary">{t("clients.detail.actif")}</Badge>,
     },
   ];
 
   return (
     <div>
       <PageHeader
-        title="Solvabilité des clients privés"
-        description="Plafonds d'encours et blocages. La fiche se crée depuis la fiche du client."
+        title={t("clients.solv.titre")}
+        description={t("clients.solv.description")}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="Rechercher un client…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("clients.solv.recherche")} />
         <FilterSelect
-          label="Statut"
+          label={t("clients.solv.filtre_statut")}
           options={[
-            { value: "1", label: "Bloqués" },
-            { value: "0", label: "Actifs" },
+            { value: "1", label: t("clients.solv.bloques") },
+            { value: "0", label: t("clients.solv.actifs") },
           ]}
           value={String(liste.filters.statut_blocage ?? "")}
           onChange={(v) => liste.setFilter("statut_blocage", v)}
@@ -77,10 +83,10 @@ function Contenu() {
         page={liste.page}
         pageSize={liste.pageSize}
         onPageChange={liste.setPage}
-        emptyMessage="Aucune fiche de solvabilité."
+        emptyMessage="clients.solv.vide"
         actions={(s) =>
           can("solvabilite.update") && (
-            <Button variant="ghost" size="icon" title="Modifier" onClick={() => setEdition(s)}>
+            <Button variant="ghost" size="icon" title={t("clients.solv.modifier")} aria-label={t("clients.solv.modifier")} onClick={() => setEdition(s)}>
               <Pencil className="h-4 w-4" />
             </Button>
           )

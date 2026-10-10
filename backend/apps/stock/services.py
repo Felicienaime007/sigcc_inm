@@ -267,3 +267,67 @@ def retour_avoir(avoir, emplacement):
     for l in avoir.lignes.all():
         entree(l.produit_id, l.quantite_retournee, emplacement, T.ENTREE_RETOUR,
                reference=avoir.num_avoir)
+
+
+# ---------------------------------------------------------------- Inventaire
+def demarrer_inventaire(inventaire):
+    """Fige le théorique : une ligne par (emplacement, produit) du magasin."""
+    from django.db import transaction
+
+    from .models import Inventaire, LigneInventaire
+    with transaction.atomic():
+        inv = Inventaire.objects.select_for_update().get(pk=inventaire.pk)
+        if inv.statut != Inventaire.Statut.BROUILLON:
+            raise ValidationError({'detail': "Seul un inventaire BROUILLON peut démarrer."})
+        lignes = list(
+            LigneStock.objects.select_for_update().filter(
+                emplacement__magasin_id=inv.magasin_id
+            ).select_related('emplacement', 'produit')
+        )
+        LigneInventaire.objects.bulk_create([
+            LigneInventaire(
+                inventaire=inv, emplacement=l.emplacement, produit=l.produit,
+                quantite_theorique=l.quantite_physique,
+            )
+            for l in lignes
+        ])
+        inv.statut = Inventaire.Statut.EN_COURS
+        inv.save(update_fields=['statut'])
+    return inv
+
+
+def valider_inventaire(inventaire):
+    """Passe les ajustements (écarts) puis fige l'inventaire. Irréversible."""
+    from django.db import transaction
+
+    from .models import Inventaire, LigneInventaire
+    with transaction.atomic():
+        inv = Inventaire.objects.select_for_update().get(pk=inventaire.pk)
+        if inv.statut != Inventaire.Statut.EN_COURS:
+            raise ValidationError({'detail': "Seul un inventaire EN_COURS peut être validé."})
+        lignes = list(
+            LigneInventaire.objects.select_for_update().filter(
+                inventaire=inv
+            ).select_related('emplacement', 'produit')
+        )
+        manquantes = [
+            f"{l.produit.code_produit} @ {l.emplacement}"
+            for l in lignes if l.quantite_comptee is None
+        ]
+        if manquantes:
+            raise ValidationError({
+                'detail': "Comptage incomplet.",
+                'manquantes': manquantes,
+            })
+        for l in lignes:
+            ecart = l.quantite_comptee - l.quantite_theorique
+            if ecart > 0:
+                entree(l.produit_id, ecart, l.emplacement,
+                       T.ENTREE_AJUSTEMENT, reference=inv.code_inventaire)
+            elif ecart < 0:
+                sortie(l.produit_id, -ecart, T.SORTIE_AJUSTEMENT,
+                       emplacement=l.emplacement, reference=inv.code_inventaire)
+        inv.statut = Inventaire.Statut.VALIDE
+        inv.date_fin = timezone.now()
+        inv.save(update_fields=['statut', 'date_fin'])
+    return inv

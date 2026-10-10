@@ -5,6 +5,7 @@ import {
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatAr, formatNombre } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 
 export interface LigneAffichee {
   code_produit: string;
@@ -16,7 +17,7 @@ export interface LigneAffichee {
 
 /** Détail des lignes d'un document (bon de livraison, avoir, préparation…). */
 export function LignesDialog({
-  open, onOpenChange, titre, description, lignes, libelleQuantite = "Quantité",
+  open, onOpenChange, titre, description, lignes, libelleQuantite,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,6 +26,8 @@ export function LignesDialog({
   lignes: LigneAffichee[];
   libelleQuantite?: string;
 }) {
+  const { t } = useT();
+  const lblQte = libelleQuantite ?? t("commercial.editeur.qte_defaut");
   const avecPrix = lignes.some((l) => l.prix !== undefined);
   const avecTotal = lignes.some((l) => l.total !== undefined);
   return (
@@ -38,15 +41,15 @@ export function LignesDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Produit</TableHead>
-                <TableHead className="text-right">{libelleQuantite}</TableHead>
-                {avecPrix && <TableHead className="text-right">Prix unitaire</TableHead>}
-                {avecTotal && <TableHead className="text-right">Montant</TableHead>}
+                <TableHead>{t("commercial.lignes_dialog.col_produit")}</TableHead>
+                <TableHead className="text-right">{lblQte}</TableHead>
+                {avecPrix && <TableHead className="text-right">{t("commercial.lignes_dialog.col_pu")}</TableHead>}
+                {avecTotal && <TableHead className="text-right">{t("commercial.lignes_dialog.col_montant")}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {lignes.map((l) => (
-                <TableRow key={l.code_produit}>
+          {lignes.map((l, i) => (
+            <TableRow key={`${l.code_produit}-${i}`}>
                   <TableCell>
                     <p className="font-medium">{l.designation}</p>
                     <p className="text-xs text-muted-foreground">{l.code_produit}</p>

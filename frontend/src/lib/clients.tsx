@@ -1,10 +1,10 @@
 import type { TypeClient } from "@/types/clients";
 
 export const TYPES_CLIENT: { value: TypeClient; label: string }[] = [
-  { value: "MINISTERE", label: "Ministère (SOA)" },
-  { value: "CTD", label: "Collectivité (SOA)" },
-  { value: "PRIVE", label: "Privé" },
-  { value: "SIMPLE", label: "Comptoir (simple)" },
+  { value: "MINISTERE", label: "clients.types.ministere" },
+  { value: "CTD", label: "clients.types.ctd" },
+  { value: "PRIVE", label: "clients.types.prive" },
+  { value: "SIMPLE", label: "clients.types.simple" },
 ];
 
 /** Un SOA (MINISTERE ou CTD) commande avec un code SOA, un organisme et une adresse administrative. */

@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { toast } from "sonner";
 import { api } from "./api";
 import { getErrorMessage } from "./errors";
+import { useT } from "./i18n/contexte";
 import type { Paginated } from "@/types/api";
 
 export type Params = Record<string, string | number | boolean | null | undefined>;
@@ -58,6 +59,7 @@ export function useApiMutation<TData, TVars>(
   opts: { success?: string; silentError?: boolean } = {},
 ) {
   const qc = useQueryClient();
+  const { t } = useT();
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
@@ -65,7 +67,7 @@ export function useApiMutation<TData, TVars>(
       if (opts.success) toast.success(opts.success);
     },
     onError: (e) => {
-      if (!opts.silentError) toast.error(getErrorMessage(e));
+      if (!opts.silentError) toast.error(getErrorMessage(e, t("commun.erreur")));
     },
   });
 }
@@ -75,20 +77,21 @@ export function useApiMutation<TData, TVars>(
  * les erreurs (silentError) ; la suppression affiche l'erreur (ex. 409) en notification.
  */
 export function useCrud<T, TBody = Partial<T>>(path: string) {
+  const { t } = useT();
   const create = useApiMutation(
     async (body: TBody) => (await api.post<T>(`/${path}/`, body)).data,
-    { success: "Enregistrement effectué.", silentError: true },
+    { success: t("commun.crud_cree"), silentError: true },
   );
   const update = useApiMutation(
     async ({ id, body }: { id: number | string; body: Partial<TBody> }) =>
       (await api.patch<T>(`/${path}/${id}/`, body)).data,
-    { success: "Modification enregistrée.", silentError: true },
+    { success: t("commun.crud_modifie"), silentError: true },
   );
   const remove = useApiMutation(
     async (id: number | string) => {
       await api.delete(`/${path}/${id}/`);
     },
-    { success: "Suppression effectuée." },
+    { success: t("commun.crud_supprime") },
   );
   return { create, update, remove };
 }

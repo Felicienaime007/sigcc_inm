@@ -10,19 +10,21 @@ import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { versNombre } from "@/lib/clients";
 import { applyServerErrors } from "@/lib/form-utils";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud } from "@/lib/resource";
 import type { Budget, LigneBudget, TypeFinancement } from "@/types/budget";
 
-const schema = z.object({
-  code_article: z.string().trim().min(1, "Le code article est obligatoire.").max(50, "50 caractères maximum."),
-  libelle_ligne: z.string().trim().min(1, "Le libellé est obligatoire.").max(255, "255 caractères maximum."),
-  montant: z.string().refine(
-    (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0,
-    "Le montant doit être positif ou nul.",
-  ),
-  type_financement: z.number().nullable(),
-});
-type FormValues = z.infer<typeof schema>;
+const schemaTraduction = (t: (c: string) => string) =>
+  z.object({
+    code_article: z.string().trim().min(1, t("budget.ldlg.err_code")).max(50, t("budget.ldlg.err_50")),
+    libelle_ligne: z.string().trim().min(1, t("budget.ldlg.err_libelle")).max(255, t("budget.ldlg.err_255")),
+    montant: z.string().refine(
+      (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0,
+      t("budget.ldlg.err_montant"),
+    ),
+    type_financement: z.number().nullable(),
+  });
+type FormValues = z.infer<ReturnType<typeof schemaTraduction>>;
 
 /** Création (ligne = null) ou modification d'une ligne budgétaire du budget `budget`. */
 export function LigneDialog({
@@ -34,10 +36,11 @@ export function LigneDialog({
 }) {
   const crud = useCrud<LigneBudget, Record<string, unknown>>("budget/lignes");
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
+  const { t } = useT();
   const verrouille = (ligne?.nb_engagements ?? 0) > 0;   // le solde évolue par les engagements seuls
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTraduction(t)),
     defaultValues: {
       code_article: ligne?.code_article ?? "",
       libelle_ligne: ligne?.libelle_ligne ?? "",
@@ -82,35 +85,36 @@ export function LigneDialog({
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={ligne ? "Modifier la ligne budgétaire" : "Nouvelle ligne budgétaire"}
-      description={`Budget ${budget.annee_budgetaire} — ${budget.nom_organisme}`}
+      title={ligne ? t("budget.ldlg.titre_modif") : t("budget.ldlg.titre_nouveau")}
+      description={t("budget.ldlg.description", { annee: budget.annee_budgetaire, org: budget.nom_organisme })}
       onSubmit={enregistrer}
       submitting={form.formState.isSubmitting}
       error={erreurServeur}
+      submitLabel={t("budget.ldlg.enregistrer")}
     >
       <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
-        <Field label="Code article" htmlFor="code_article" error={erreurs.code_article?.message}>
+        <Field label={t("budget.ldlg.code")} htmlFor="code_article" error={erreurs.code_article?.message}>
           <Input id="code_article" autoFocus {...form.register("code_article")} />
         </Field>
-        <Field label="Libellé" htmlFor="libelle_ligne" error={erreurs.libelle_ligne?.message}>
+        <Field label={t("budget.ldlg.libelle")} htmlFor="libelle_ligne" error={erreurs.libelle_ligne?.message}>
           <Input id="libelle_ligne" {...form.register("libelle_ligne")} />
         </Field>
       </div>
 
       <Field
-        label={ligne ? "Montant disponible (Ar)" : "Dotation de la ligne (Ar)"}
+        label={ligne ? t("budget.ldlg.montant_dispo") : t("budget.ldlg.dotation")}
         htmlFor="montant"
         error={erreurs.montant?.message}
         hint={
           verrouille
-            ? "Non modifiable : des engagements existent. Le solde évolue par les engagements et leurs annulations."
-            : "Crédit ouvert sur cette ligne. Il diminue à chaque engagement visé."
+            ? t("budget.ldlg.montant_verrouille")
+            : t("budget.ldlg.montant_hint")
         }
       >
         <Input id="montant" inputMode="decimal" disabled={verrouille} {...form.register("montant")} />
       </Field>
 
-      <Field label="Type de financement (facultatif)" error={erreurs.type_financement?.message}>
+      <Field label={t("budget.ldlg.financement")} error={erreurs.type_financement?.message}>
         <Controller
           control={form.control}
           name="type_financement"
@@ -119,11 +123,11 @@ export function LigneDialog({
               path="budget/types-financement"
               value={field.value}
               onChange={field.onChange}
-              getValue={(t) => t.id_type_financement}
-              getLabel={(t) => t.libelle_financement}
-              placeholder="Choisir…"
+              getValue={(tf) => tf.id_type_financement}
+              getLabel={(tf) => tf.libelle_financement}
+              placeholder={t("budget.ldlg.choisir")}
               allowEmpty
-              emptyLabel="— Non précisé —"
+              emptyLabel={t("budget.ldlg.sans_precision")}
             />
           )}
         />

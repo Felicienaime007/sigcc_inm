@@ -7,6 +7,7 @@ import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { getErrorMessage } from "@/lib/errors";
 import { useCrud } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { Client } from "@/types/clients";
 import type { Planification } from "@/types/commercial";
 import { LignesEditor, verifierLignes, versApi, type LigneEdit } from "./lignes-editor";
@@ -18,6 +19,7 @@ export function PlanificationDialog({
   planification: Planification | null;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const edition = planification !== null;
   const crud = useCrud<Planification, Record<string, unknown>>("commercial/planifications");
 
@@ -34,9 +36,9 @@ export function PlanificationDialog({
 
   async function envoyer() {
     setErreur(null);
-    if (!edition && !client) return setErreur("Sélectionnez le client.");
-    if (!periode.trim()) return setErreur("La période cible est obligatoire (ex. 2026-T4).");
-    const e = verifierLignes(lignes, false);
+    if (!edition && !client) return setErreur(t("commercial.dialog_planif.err_client"));
+    if (!periode.trim()) return setErreur(t("commercial.dialog_planif.err_periode"));
+    const e = verifierLignes(lignes, false, t);
     if (e) return setErreur(e);
 
     const body = {
@@ -56,14 +58,14 @@ export function PlanificationDialog({
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={edition ? "Modifier la planification" : "Nouvelle planification de besoins"}
-      description="Besoins prévus d'un client sur une période. Une seule planification par client et par période."
+      title={edition ? t("commercial.dialog_planif.titre_modif") : t("commercial.dialog_planif.titre_nouveau")}
+      description={t("commercial.dialog_planif.description")}
       onSubmit={(e) => { e?.preventDefault(); void envoyer(); }}
       submitting={crud.create.isPending || crud.update.isPending}
       error={erreur}
       wide
     >
-      <Field label="Client">
+      <Field label={t("commercial.dialog_planif.champ_client")}>
         {edition ? (
           <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">{planification.nom_client}</div>
         ) : (
@@ -71,12 +73,12 @@ export function PlanificationDialog({
         )}
       </Field>
 
-      <Field label="Période cible" htmlFor="periode" hint="Ex. 2026-T4 (trimestre) ou 2026-S2 (semestre).">
+      <Field label={t("commercial.dialog_planif.champ_periode")} htmlFor="periode" hint={t("commercial.dialog_planif.hint_periode")}>
         <Input id="periode" value={periode} onChange={(e) => setPeriode(e.target.value)} maxLength={50} />
       </Field>
 
-      <Field label="Produits prévus">
-        <LignesEditor lignes={lignes} onChange={setLignes} avecPrix={false} libelleQuantite="Quantité estimée" />
+      <Field label={t("commercial.dialog_planif.champ_produits")}>
+        <LignesEditor lignes={lignes} onChange={setLignes} avecPrix={false} libelleQuantite={t("commercial.planifications.qte_estimee")} />
       </Field>
     </FormDialog>
   );

@@ -131,6 +131,9 @@ class SolvabiliteClient(models.Model):
     statut_blocage = models.SmallIntegerField(
         choices=CHOIX_BLOCAGE, default=BLOCAGE_ACTIF
     )
+    # 1 si le blocage a été posé automatiquement par un dossier CONTENTIEUX :
+    # seul ce blocage est levé automatiquement à la régularisation.
+    blocage_auto = models.SmallIntegerField(default=0)
 
     class Meta:
         db_table = 'solvabilite_client'

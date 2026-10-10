@@ -9,7 +9,10 @@ from rest_framework import serializers
 from apps.produits.models import ProduitFini
 
 from . import services
-from .models import Emplacement, LigneStock, MagasinDepot, MouvementStock, ReservationStock
+from .models import (
+    Emplacement, Inventaire, LigneInventaire, LigneStock, MagasinDepot,
+    MouvementStock, ReservationStock,
+)
 
 T = MouvementStock.Type
 
@@ -157,3 +160,58 @@ class MouvementStockSerializer(serializers.ModelSerializer):
             if type_.startswith('ENTREE'):
                 return services.entree(pid, qte, emp, type_, reference=ref)
             return services.sortie(pid, qte, type_, emplacement=emp, reference=ref)
+
+
+class LigneInventaireSerializer(serializers.ModelSerializer):
+    code_produit = serializers.CharField(source='produit.code_produit', read_only=True)
+    designation = serializers.CharField(source='produit.designation', read_only=True)
+    libelle_emplacement = serializers.SerializerMethodField()
+    ecart = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LigneInventaire
+        fields = [
+            'id_ligne_inventaire', 'inventaire', 'emplacement', 'libelle_emplacement',
+            'produit', 'code_produit', 'designation',
+            'quantite_theorique', 'quantite_comptee', 'ecart', 'motif',
+        ]
+        read_only_fields = [
+            'inventaire', 'emplacement', 'produit', 'quantite_theorique', 'ecart',
+        ]
+
+    def get_libelle_emplacement(self, obj):
+        return str(obj.emplacement)
+
+    def get_ecart(self, obj):
+        return obj.ecart
+
+    def validate(self, attrs):
+        if self.instance is not None \
+                and self.instance.inventaire.statut != Inventaire.Statut.EN_COURS:
+            raise serializers.ValidationError(
+                "Saisie possible uniquement sur un inventaire EN_COURS."
+            )
+        return attrs
+
+
+class InventaireSerializer(serializers.ModelSerializer):
+    code_depot = serializers.CharField(source='magasin.code_depot', read_only=True)
+    nb_lignes = serializers.IntegerField(read_only=True)
+    nb_comptees = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Inventaire
+        fields = [
+            'id_inventaire', 'code_inventaire', 'magasin', 'code_depot',
+            'date_debut', 'date_fin', 'statut', 'commentaire',
+            'nb_lignes', 'nb_comptees',
+        ]
+        read_only_fields = ['code_inventaire', 'date_debut', 'date_fin', 'statut']
+
+    def create(self, validated):
+        from django.utils import timezone
+        with transaction.atomic():
+            inv = Inventaire.objects.create(code_inventaire='PROVISOIRE', **validated)
+            inv.code_inventaire = f'INV-{timezone.localdate().year}-{inv.pk:05d}'
+            inv.save(update_fields=['code_inventaire'])
+        return inv

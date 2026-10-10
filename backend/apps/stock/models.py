@@ -126,3 +126,76 @@ class MouvementStock(models.Model):
 
     def __str__(self):
         return f'{self.type_mouvement} {self.quantite_mouv} x {self.produit_id}'
+
+
+class Inventaire(models.Model):
+    """Inventaire physique d'un magasin : comptage, écarts, ajustements validés."""
+
+    class Statut(models.TextChoices):
+        BROUILLON = 'BROUILLON', 'Brouillon'
+        EN_COURS = 'EN_COURS', 'Comptage en cours'
+        VALIDE = 'VALIDE', 'Validé (ajustements passés)'
+        ANNULE = 'ANNULE', 'Annulé'
+
+    id_inventaire = models.AutoField(primary_key=True)
+    code_inventaire = models.CharField(max_length=50, unique=True)
+    magasin = models.ForeignKey(
+        MagasinDepot, on_delete=models.PROTECT,
+        db_column='id_magasin', related_name='inventaires',
+    )
+    date_debut = models.DateTimeField(default=timezone.now)
+    date_fin = models.DateTimeField(null=True, blank=True)
+    statut = models.CharField(
+        max_length=30, choices=Statut.choices, default=Statut.BROUILLON
+    )
+    commentaire = models.TextField(blank=True, default='')
+
+    class Meta:
+        db_table = 'inventaire'
+        ordering = ['-date_debut', '-id_inventaire']
+
+    def __str__(self):
+        return f'{self.code_inventaire} ({self.statut})'
+
+
+class LigneInventaire(models.Model):
+    """Une ligne de comptage : théorique figé au démarrage, compté saisi, écart calculé."""
+
+    id_ligne_inventaire = models.AutoField(primary_key=True)
+    inventaire = models.ForeignKey(
+        Inventaire, on_delete=models.CASCADE,
+        db_column='id_inventaire', related_name='lignes',
+    )
+    emplacement = models.ForeignKey(
+        Emplacement, on_delete=models.PROTECT,
+        db_column='id_emplacement', related_name='lignes_inventaire',
+    )
+    produit = models.ForeignKey(
+        'produits.ProduitFini', on_delete=models.PROTECT,
+        db_column='id_produit', related_name='lignes_inventaire',
+    )
+    quantite_theorique = models.PositiveIntegerField(default=0)
+    quantite_comptee = models.PositiveIntegerField(null=True, blank=True)
+    motif = models.CharField(max_length=200, blank=True, default='')
+
+    class Meta:
+        db_table = 'ligne_inventaire'
+        ordering = [
+            'produit__code_produit', 'emplacement__code_allee',
+            'emplacement__code_etagere', 'id_ligne_inventaire',
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['inventaire', 'emplacement', 'produit'],
+                name='uk_ligneinv_inv_empl_prod',
+            )
+        ]
+
+    @property
+    def ecart(self):
+        if self.quantite_comptee is None:
+            return None
+        return self.quantite_comptee - self.quantite_theorique
+
+    def __str__(self):
+        return f'{self.inventaire.code_inventaire} : {self.produit_id} x {self.emplacement_id}'

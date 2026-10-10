@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from apps.recouvrement.services import apres_reglement
@@ -8,8 +9,8 @@ from apps.commercial.models import Facture
 
 from . import services
 from .models import (
-    NB_FEUILLES, NB_VOLETS_CARNET, VOLETS, Caisse, LivreCaisse, LivreQuittance,
-    Quittance, Reglement,
+    COUPURES, NB_FEUILLES, NB_VOLETS_CARNET, VOLETS, ArreteCaisse, Caisse, LivreCaisse,
+    LivreQuittance, Quittance, Reglement, RemiseBanque,
 )
 
 Mode = Reglement.Mode
@@ -66,7 +67,7 @@ class QuittanceSerializer(serializers.ModelSerializer):
         model = Quittance
         fields = [
             'id_quittance', 'livre', 'numero_livre', 'num_feuille', 'attribut_volet',
-            'date_emission', 'caisse', 'code_caisse',
+            'date_emission', 'caisse', 'code_caisse', 'statut',
             'reglement', 'num_facture', 'montant_regle',
         ]
         read_only_fields = fields
@@ -101,9 +102,10 @@ class ReglementSerializer(serializers.ModelSerializer):
             'id_reglement', 'mode_reglement', 'date_reglement', 'montant_regle',
             'num_virement_tresor', 'facture', 'num_facture',
             'statut_paiement_facture', 'reste_a_payer', 'quittance',
+            'statut', 'motif_annulation', 'date_annulation',
             'caisse', 'livre', 'num_feuille', 'attribut_volet',
         ]
-        read_only_fields = ['date_reglement']
+        read_only_fields = ['date_reglement', 'statut', 'motif_annulation', 'date_annulation']
         extra_kwargs = {'num_virement_tresor': {'required': False, 'allow_null': True}}
 
     def get_reste_a_payer(self, obj):
@@ -116,6 +118,7 @@ class ReglementSerializer(serializers.ModelSerializer):
         return {
             'numero_livre': q.livre.numero_livre, 'num_feuille': q.num_feuille,
             'attribut_volet': q.attribut_volet, 'code_caisse': q.caisse.code_caisse,
+            'statut': q.statut,
         }
 
     def validate(self, attrs):
@@ -169,6 +172,10 @@ class ReglementSerializer(serializers.ModelSerializer):
 
         with transaction.atomic():
             facture = Facture.objects.select_for_update().get(pk=validated['facture'].pk)
+            if facture.statut_paiement == Facture.StatutPaiement.ANNULEE:
+                raise serializers.ValidationError(
+                    {'facture': "Cette facture est annulée : aucun règlement possible."}
+                )
             reste = services.reste_a_payer(facture)
             montant = validated['montant_regle']
             if reste <= 0:
@@ -187,6 +194,10 @@ class ReglementSerializer(serializers.ModelSerializer):
                         {'livre': "Ce carnet est épuisé : utilisez un carnet EN_COURS."}
                     )
                 caisse = Caisse.objects.select_for_update().get(pk=caisse.pk)
+                if services.journee_cloturee(caisse, timezone.now()):
+                    raise serializers.ValidationError(
+                        {'caisse': "Journée arrêtée pour cette caisse : encaissement refusé."}
+                    )
                 if Quittance.objects.filter(
                     livre=livre, num_feuille=feuille, attribut_volet=volet
                 ).exists():
@@ -245,6 +256,10 @@ class LivreCaisseSerializer(serializers.ModelSerializer):
     def create(self, validated):
         with transaction.atomic():
             caisse = Caisse.objects.select_for_update().get(pk=validated['caisse'].pk)
+            if services.journee_cloturee(caisse, timezone.now()):
+                raise serializers.ValidationError({
+                    'caisse': "Journée arrêtée pour cette caisse : écriture refusée."
+                })
             montant = validated['montant_op']
             if validated['type_operation'] == LivreCaisse.Type.SORTIE:
                 if montant > caisse.solde_actuel:
@@ -257,3 +272,129 @@ class LivreCaisseSerializer(serializers.ModelSerializer):
             caisse.save(update_fields=['solde_actuel'])
             validated['caisse'] = caisse
             return LivreCaisse.objects.create(**validated)
+
+
+def valider_comptage(detail, montant):
+    """Valide le détail du comptage physique par coupure.
+
+    Format attendu : JSON {"20000": 3, "10000": 1, ...} (coupures officielles
+    de l'Ariary, quantités entières positives, total égal au montant compté).
+    Un texte libre non JSON reste accepté (données historiques).
+    """
+    import json
+
+    if detail is None or str(detail).strip() == '':
+        return
+    try:
+        donnees = json.loads(detail)
+    except (ValueError, TypeError):
+        return  # texte libre historique : accepté tel quel
+    if not isinstance(donnees, dict) or not donnees:
+        raise serializers.ValidationError(
+            {'detail_billets': 'Format attendu : {"10000": 12, "5000": 3, ...}.'}
+        )
+    total = 0
+    for coupure, quantite in donnees.items():
+        try:
+            valeur = int(coupure)
+        except (TypeError, ValueError):
+            valeur = None
+        if valeur not in COUPURES:
+            raise serializers.ValidationError(
+                {'detail_billets': f"Coupure invalide : {coupure} "
+                                   f"(coupures : {', '.join(map(str, COUPURES))})."}
+            )
+        if isinstance(quantite, bool) or not isinstance(quantite, int) or quantite < 0:
+            raise serializers.ValidationError(
+                {'detail_billets': f"Quantité invalide pour la coupure {coupure}."}
+            )
+        total += valeur * quantite
+    if montant is not None and Decimal(total) != Decimal(montant):
+        raise serializers.ValidationError(
+            {'detail_billets': f"Total des coupures ({total} Ar) différent "
+                              f"du montant compté ({montant} Ar)."}
+        )
+
+
+class ArreteCaisseSerializer(serializers.ModelSerializer):
+    code_caisse = serializers.CharField(source='caisse.code_caisse', read_only=True)
+    remises = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ArreteCaisse
+        fields = [
+            'id_arrete', 'caisse', 'code_caisse', 'date_arrete',
+            'total_entrees', 'total_sorties', 'solde_theorique',
+            'montant_compte', 'ecart', 'detail_billets',
+            'statut', 'date_validation', 'remises',
+        ]
+        read_only_fields = [
+            'total_entrees', 'total_sorties', 'solde_theorique',
+            'ecart', 'statut', 'date_validation', 'remises',
+        ]
+
+    def get_remises(self, obj):
+        return [
+            {'id_remise': r.pk, 'reference_bordereau': r.reference_bordereau,
+             'montant': r.montant, 'statut': r.statut}
+            for r in obj.remises.all()
+        ]
+
+    def validate(self, attrs):
+        caisse = attrs.get('caisse') or getattr(self.instance, 'caisse', None)
+        jour = attrs.get('date_arrete') or getattr(self.instance, 'date_arrete', None)
+        if self.instance is None and caisse is not None and jour is not None:
+            if ArreteCaisse.objects.filter(caisse=caisse, date_arrete=jour).exists():
+                raise serializers.ValidationError(
+                    {'date_arrete': "Un arrêté existe déjà pour cette caisse à cette date."}
+                )
+            if services.journee_cloturee(caisse, jour):
+                raise serializers.ValidationError(
+                    {'date_arrete': "Une journée postérieure est déjà arrêtée."}
+                )
+        montant = attrs.get('montant_compte')
+        if montant is None and self.instance is not None:
+            montant = self.instance.montant_compte
+        detail = attrs.get('detail_billets', getattr(self.instance, 'detail_billets', None)
+                           if self.instance is not None else None)
+        if 'detail_billets' in attrs or 'montant_compte' in attrs:
+            valider_comptage(detail, montant)
+        return attrs
+
+
+class RemiseBanqueSerializer(serializers.ModelSerializer):
+    code_caisse = serializers.CharField(source='caisse.code_caisse', read_only=True)
+    date_arrete = serializers.DateField(
+        source='arrete.date_arrete', read_only=True, default=None
+    )
+
+    class Meta:
+        model = RemiseBanque
+        fields = [
+            'id_remise', 'caisse', 'code_caisse', 'date_remise', 'montant',
+            'reference_bordereau', 'modes', 'statut', 'date_statut',
+            'arrete', 'date_arrete',
+        ]
+        read_only_fields = ['statut', 'date_statut', 'date_arrete']
+        extra_kwargs = {'arrete': {'required': False, 'allow_null': True}}
+
+    def validate(self, attrs):
+        arrete = attrs.get('arrete')
+        if arrete is None and self.instance is not None:
+            arrete = self.instance.arrete
+        if arrete is not None:
+            caisse = attrs.get('caisse') or getattr(self.instance, 'caisse', None)
+            if caisse is not None and arrete.caisse_id != caisse.pk:
+                raise serializers.ValidationError(
+                    {'arrete': "L'arrêté doit concerner la même caisse que la remise."}
+                )
+        return attrs
+
+    def validate_modes(self, value):
+        autorises = {'ESPECES', 'CHEQUE'}
+        modes = {m.strip().upper() for m in value.split(',') if m.strip()}
+        if not modes or not modes <= autorises:
+            raise serializers.ValidationError(
+                "Modes acceptés : ESPECES et/ou CHEQUE (séparés par une virgule)."
+            )
+        return ','.join(sorted(modes))

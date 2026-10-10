@@ -20,20 +20,22 @@ import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { applyServerErrors } from "@/lib/form-utils";
 import { formatNombre } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud, useOptions } from "@/lib/resource";
 import type { Privilege, Role } from "@/types/users";
 
 const PATH = "users/roles";
 
-const schema = z.object({
-  libelle_role: z
-    .string().trim()
-    .min(1, "Le nom du rôle est obligatoire.")
-    .max(50, "50 caractères maximum.")
-    .regex(/^[A-Z0-9_]+$/, "Majuscules, chiffres et _ uniquement (ex. CHEF_ATELIER)."),
-  privilege_ids: z.array(z.number()),
-});
-type FormValues = z.infer<typeof schema>;
+const schemaTraduction = (t: (c: string) => string) =>
+  z.object({
+    libelle_role: z
+      .string().trim()
+      .min(1, t("admin.roles.err_nom_obligatoire"))
+      .max(50, t("admin.roles.err_nom_max"))
+      .regex(/^[A-Z0-9_]+$/, t("admin.roles.err_nom_format")),
+    privilege_ids: z.array(z.number()),
+  });
+type FormValues = { libelle_role: string; privilege_ids: number[] };
 
 type Edition = { mode: "create" } | { mode: "edit"; item: Role } | null;
 
@@ -47,6 +49,7 @@ export default function RolesPage() {
 
 function Contenu() {
   const { can } = useAuth();
+  const { t } = useT();
   const liste = usePagedList<Role>(PATH, { ordering: "libelle_role" });
   const crud = useCrud<Role, FormValues>(PATH);
   const { data: privileges } = useOptions<Privilege>("users/privileges");
@@ -56,7 +59,7 @@ function Contenu() {
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTraduction(t)),
     defaultValues: { libelle_role: "", privilege_ids: [] },
   });
 
@@ -103,20 +106,20 @@ function Contenu() {
 
   const colonnes: Column<Role>[] = [
     {
-      key: "role", header: "Rôle", sortKey: "libelle_role",
+      key: "role", header: "admin.roles.col_role", sortKey: "libelle_role",
       cell: (r) => (
         <span className="font-medium">
           {r.libelle_role}
-          {r.libelle_role === "ADMIN" && <Badge className="ml-2">Accès total</Badge>}
+          {r.libelle_role === "ADMIN" && <Badge className="ml-2">{t("admin.roles.acces_total")}</Badge>}
         </span>
       ),
     },
     {
-      key: "privileges", header: "Privilèges", className: "text-right tabular-nums",
-      cell: (r) => (r.libelle_role === "ADMIN" ? "Tous" : formatNombre((r.privileges ?? []).length)),
+      key: "privileges", header: "admin.roles.col_privileges", className: "text-right tabular-nums",
+      cell: (r) => (r.libelle_role === "ADMIN" ? t("admin.roles.tous") : formatNombre((r.privileges ?? []).length)),
     },
     {
-      key: "users", header: "Utilisateurs", sortKey: "nb_utilisateurs", className: "text-right tabular-nums",
+      key: "users", header: "admin.roles.col_utilisateurs", sortKey: "nb_utilisateurs", className: "text-right tabular-nums",
       cell: (r) => formatNombre(r.nb_utilisateurs),
     },
   ];
@@ -124,19 +127,19 @@ function Contenu() {
   return (
     <div>
       <PageHeader
-        title="Rôles & privilèges"
-        description="Chaque rôle regroupe des privilèges ; un utilisateur cumule les privilèges de ses rôles."
+        title={t("admin.roles.titre")}
+        description={t("admin.roles.description")}
         action={
           <Can privilege="role.create">
             <Button onClick={ouvrirCreation}>
-              <Plus className="mr-2 h-4 w-4" /> Nouveau rôle
+              <Plus className="mr-2 h-4 w-4" /> {t("admin.roles.nouveau")}
             </Button>
           </Can>
         }
       />
 
       <div className="mb-4">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="Rechercher un rôle…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("admin.roles.recherche_ph")} />
       </div>
 
       <DataTable
@@ -151,17 +154,17 @@ function Contenu() {
         onPageChange={liste.setPage}
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun rôle."
+        emptyMessage="admin.roles.vide"
         actions={(r) =>
           r.libelle_role === "ADMIN" ? null : (
             <>
               {can("role.update") && (
-                <Button variant="ghost" size="icon" title="Modifier" onClick={() => ouvrirEdition(r)}>
+                <Button variant="ghost" size="icon" title={t("commun.modifier")} aria-label={t("commun.modifier")} onClick={() => ouvrirEdition(r)}>
                   <Pencil className="h-4 w-4" />
                 </Button>
               )}
               {can("role.delete") && (
-                <Button variant="ghost" size="icon" title="Supprimer" onClick={() => setASupprimer(r)}>
+                <Button variant="ghost" size="icon" title={t("commun.supprimer")} aria-label={t("commun.supprimer")} onClick={() => setASupprimer(r)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               )}
@@ -173,22 +176,22 @@ function Contenu() {
       <FormDialog
         open={edition !== null}
         onOpenChange={(o) => !o && setEdition(null)}
-        title={edition?.mode === "edit" ? `Modifier le rôle ${edition.item.libelle_role}` : "Nouveau rôle"}
+        title={edition?.mode === "edit" ? t("admin.roles.modifier_titre", { role: edition.item.libelle_role }) : t("admin.roles.nouveau_titre")}
         onSubmit={enregistrer}
         submitting={form.formState.isSubmitting}
         error={erreurServeur}
         wide
       >
         <Field
-          label="Nom du rôle"
+          label={t("admin.roles.champ_nom")}
           htmlFor="libelle_role"
           error={form.formState.errors.libelle_role?.message}
-          hint="En majuscules, sans espace (ex. CHEF_ATELIER)."
+          hint={t("admin.roles.hint_nom")}
         >
           <Input id="libelle_role" autoFocus {...form.register("libelle_role")} />
         </Field>
 
-        <Field label="Privilèges accordés" error={form.formState.errors.privilege_ids?.message}>
+        <Field label={t("admin.roles.champ_privileges")} error={form.formState.errors.privilege_ids?.message}>
           <Controller
             control={form.control}
             name="privilege_ids"
@@ -206,9 +209,9 @@ function Contenu() {
       <ConfirmDialog
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
-        title="Supprimer le rôle ?"
-        description={`Le rôle « ${aSupprimer?.libelle_role ?? ""} » sera supprimé. Impossible s'il est encore attribué à des utilisateurs.`}
-        confirmLabel="Supprimer"
+        title={t("admin.roles.suppr_titre")}
+        description={t("admin.roles.suppr_description", { role: aSupprimer?.libelle_role ?? "" })}
+        confirmLabel={t("commun.supprimer")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}

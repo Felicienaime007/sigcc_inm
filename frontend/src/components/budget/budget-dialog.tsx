@@ -11,36 +11,39 @@ import { FormDialog } from "@/components/forms/form-dialog";
 import { versNombre } from "@/lib/clients";
 import { anneeCourante } from "@/lib/dates";
 import { applyServerErrors } from "@/lib/form-utils";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud } from "@/lib/resource";
 import type { Organisme } from "@/types/clients";
 import type { Budget } from "@/types/budget";
 
-const schema = z
-  .object({
-    organisme: z.number().nullable(),
-    annee: z.string().refine(
-      (s) => /^\d{4}$/.test(s.trim()) && Number(s) >= 2000 && Number(s) <= 2100,
-      "Année comprise entre 2000 et 2100.",
-    ),
-    montant: z.string().refine(
-      (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0,
-      "Le montant doit être positif ou nul.",
-    ),
-  })
-  .superRefine((v, ctx) => {
-    if (v.organisme === null) {
-      ctx.addIssue({ code: "custom", path: ["organisme"], message: "L'organisme est obligatoire." });
-    }
-  });
-type FormValues = z.infer<typeof schema>;
+const schemaTraduction = (t: (c: string) => string) =>
+  z
+    .object({
+      organisme: z.number().nullable(),
+      annee: z.string().refine(
+        (s) => /^\d{4}$/.test(s.trim()) && Number(s) >= 2000 && Number(s) <= 2100,
+        t("budget.bdlg.err_annee"),
+      ),
+      montant: z.string().refine(
+        (s) => s.trim() !== "" && Number.isFinite(versNombre(s)) && versNombre(s) >= 0,
+        t("budget.bdlg.err_montant"),
+      ),
+    })
+    .superRefine((v, ctx) => {
+      if (v.organisme === null) {
+        ctx.addIssue({ code: "custom", path: ["organisme"], message: t("budget.bdlg.err_organisme") });
+      }
+    });
+type FormValues = z.infer<ReturnType<typeof schemaTraduction>>;
 
 /** Création (budget = null) ou modification d'un budget annuel d'organisme. */
 export function BudgetDialog({ budget, onClose }: { budget: Budget | null; onClose: () => void }) {
   const crud = useCrud<Budget, Record<string, unknown>>("budget/budgets");
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
+  const { t } = useT();
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaTraduction(t)),
     defaultValues: {
       organisme: budget?.organisme ?? null,
       annee: String(budget?.annee_budgetaire ?? anneeCourante()),
@@ -76,15 +79,16 @@ export function BudgetDialog({ budget, onClose }: { budget: Budget | null; onClo
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={budget ? "Modifier le budget" : "Nouveau budget"}
-      description="Un seul budget par organisme et par année. Les lignes budgétaires se saisissent ensuite dans la fiche du budget."
+      title={budget ? t("budget.bdlg.titre_modif") : t("budget.bdlg.titre_nouveau")}
+      description={t("budget.bdlg.description")}
       onSubmit={enregistrer}
       submitting={form.formState.isSubmitting}
       error={erreurServeur}
+      submitLabel={t("budget.bdlg.enregistrer")}
     >
       <Field
-        label="Organisme" error={erreurs.organisme?.message}
-        hint={aDesLignes ? "Non modifiable : le budget a déjà des lignes." : undefined}
+        label={t("budget.bdlg.organisme")} error={erreurs.organisme?.message}
+        hint={aDesLignes ? t("budget.bdlg.organisme_verrouille") : undefined}
       >
         <Controller
           control={form.control}
@@ -96,17 +100,17 @@ export function BudgetDialog({ budget, onClose }: { budget: Budget | null; onClo
               onChange={field.onChange}
               getValue={(o) => o.id_organisme}
               getLabel={(o) => `${o.nom_organisme} (${o.code_institutionnel})`}
-              placeholder="Choisir l'organisme…"
+              placeholder={t("budget.bdlg.choisir_organisme")}
               disabled={aDesLignes}
             />
           )}
         />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Année budgétaire" htmlFor="annee" error={erreurs.annee?.message}>
+        <Field label={t("budget.bdlg.annee")} htmlFor="annee" error={erreurs.annee?.message}>
           <Input id="annee" inputMode="numeric" maxLength={4} {...form.register("annee")} />
         </Field>
-        <Field label="Montant alloué (Ar)" htmlFor="montant" error={erreurs.montant?.message}>
+        <Field label={t("budget.bdlg.montant")} htmlFor="montant" error={erreurs.montant?.message}>
           <Input id="montant" inputMode="decimal" {...form.register("montant")} />
         </Field>
       </div>

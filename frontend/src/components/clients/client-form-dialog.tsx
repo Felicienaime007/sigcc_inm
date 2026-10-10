@@ -14,40 +14,42 @@ import { HierarchyPicker } from "@/components/territoire/hierarchy-picker";
 import { useAuth } from "@/lib/auth-context";
 import { TYPES_CLIENT, estSoa, typesGerables } from "@/lib/clients";
 import { applyServerErrors } from "@/lib/form-utils";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud } from "@/lib/resource";
 import type { Client, Organisme, TypeClient } from "@/types/clients";
 
-const schema = z
-  .object({
-    nom_client: z.string().trim().min(1, "Le nom est obligatoire.").max(150, "150 caractères maximum."),
-    type_client: z.string().min(1, "Le type est obligatoire."),
-    code_soa: z.string(),
-    organisme: z.number().nullable(),
-    fokontany: z.number().nullable(),
-    ville: z.string().max(100, "100 caractères maximum."),
-    telephone: z.string().max(30, "30 caractères maximum."),
-    cin_ou_nif: z.string().max(50, "50 caractères maximum."),
-    adresse: z.string(),
-  })
-  .superRefine((v, ctx) => {
-    if (estSoa(v.type_client)) {
-      if (!/^\d{5}$/.test(v.code_soa.trim())) {
-        ctx.addIssue({ code: "custom", path: ["code_soa"], message: "Le code SOA comporte exactement 5 chiffres." });
+const schemaTraduction = (t: (c: string) => string) =>
+  z
+    .object({
+      nom_client: z.string().trim().min(1, t("clients.form.err_nom")).max(150, t("clients.form.err_150")),
+      type_client: z.string().min(1, t("clients.form.err_type")),
+      code_soa: z.string(),
+      organisme: z.number().nullable(),
+      fokontany: z.number().nullable(),
+      ville: z.string().max(100, t("clients.form.err_100")),
+      telephone: z.string().max(30, t("clients.form.err_30")),
+      cin_ou_nif: z.string().max(50, t("clients.form.err_50")),
+      adresse: z.string(),
+    })
+    .superRefine((v, ctx) => {
+      if (estSoa(v.type_client)) {
+        if (!/^\d{5}$/.test(v.code_soa.trim())) {
+          ctx.addIssue({ code: "custom", path: ["code_soa"], message: t("clients.form.err_soa") });
+        }
+        if (v.organisme === null) {
+          ctx.addIssue({ code: "custom", path: ["organisme"], message: t("clients.form.err_organisme") });
+        }
+        if (v.fokontany === null) {
+          ctx.addIssue({
+            code: "custom", path: ["fokontany"],
+            message: t("clients.form.err_fokontany"),
+          });
+        }
+      } else if (v.type_client && !v.ville.trim()) {
+        ctx.addIssue({ code: "custom", path: ["ville"], message: t("clients.form.err_ville") });
       }
-      if (v.organisme === null) {
-        ctx.addIssue({ code: "custom", path: ["organisme"], message: "L'organisme est obligatoire pour un SOA." });
-      }
-      if (v.fokontany === null) {
-        ctx.addIssue({
-          code: "custom", path: ["fokontany"],
-          message: "L'adresse administrative est obligatoire (jusqu'au fokontany).",
-        });
-      }
-    } else if (v.type_client && !v.ville.trim()) {
-      ctx.addIssue({ code: "custom", path: ["ville"], message: "La ville est obligatoire." });
-    }
-  });
-type FormValues = z.infer<typeof schema>;
+    });
+type FormValues = z.infer<ReturnType<typeof schemaTraduction>>;
 
 interface ClientBody {
   nom_client: string;
@@ -88,6 +90,7 @@ export function ClientFormDialog({
   const { can } = useAuth();
   const crud = useCrud<Client, ClientBody>("clients/clients");
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
+  const { t } = useT();
 
   // Types proposés : imposé par le contexte si fourni, sinon ceux que le rôle
   // a le droit de créer (ou de modifier, en édition). En édition on ne change
@@ -99,7 +102,7 @@ export function ClientFormDialog({
   }, [can, client, typeImpose]);
   const typeUnique = typesChoix.length === 1 ? typesChoix[0] : null;   // ex. réception : SIMPLE seulement
 
-  const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: VIDE });
+  const form = useForm<FormValues>({ resolver: zodResolver(schemaTraduction(t)), defaultValues: VIDE });
   const type = form.watch("type_client");
   const soa = estSoa(type);
 
@@ -157,25 +160,26 @@ export function ClientFormDialog({
       onOpenChange={onOpenChange}
       title={
         client
-          ? "Modifier le client"
+          ? t("clients.form.titre_modif")
           : typeUnique?.value === "SIMPLE"
-            ? "Nouveau client comptoir"
-            : "Nouveau client"
+            ? t("clients.form.titre_comptoir")
+            : t("clients.form.titre_nouveau")
       }
       onSubmit={enregistrer}
       submitting={form.formState.isSubmitting}
       error={erreurServeur}
+      submitLabel={t("clients.form.enregistrer")}
       wide={soa}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Nom du client" htmlFor="nom_client" error={erreurs.nom_client?.message}>
+        <Field label={t("clients.form.nom")} htmlFor="nom_client" error={erreurs.nom_client?.message}>
           <Input id="nom_client" autoFocus {...form.register("nom_client")} />
         </Field>
 
-        <Field label="Type de client" error={erreurs.type_client?.message}>
+        <Field label={t("clients.form.type")} error={erreurs.type_client?.message}>
           {typeUnique ? (
             <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
-              {typeUnique.label}
+              {t(`clients.types.${typeUnique.value.toLowerCase()}`)}
             </div>
           ) : (
             <Controller
@@ -199,10 +203,10 @@ export function ClientFormDialog({
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Choisir…" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder={t("clients.form.choisir")} /></SelectTrigger>
                   <SelectContent>
-                    {typesChoix.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    {typesChoix.map((tc) => (
+                      <SelectItem key={tc.value} value={tc.value}>{t(`clients.types.${tc.value.toLowerCase()}`)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -217,14 +221,14 @@ export function ClientFormDialog({
         <>
           <div className="grid gap-4 rounded-md border bg-muted/30 p-3 sm:grid-cols-2">
             <Field
-              label="Code SOA"
+              label={t("clients.form.code_soa")}
               htmlFor="code_soa"
               error={erreurs.code_soa?.message}
-              hint="5 chiffres. C'est le SOA qui commande, pas le ministère ou la collectivité elle-même."
+              hint={t("clients.form.code_soa_hint")}
             >
               <Input id="code_soa" inputMode="numeric" maxLength={5} {...form.register("code_soa")} />
             </Field>
-            <Field label="Organisme de rattachement" error={erreurs.organisme?.message}>
+            <Field label={t("clients.form.organisme")} error={erreurs.organisme?.message}>
               <Controller
                 control={form.control}
                 name="organisme"
@@ -235,7 +239,7 @@ export function ClientFormDialog({
                     onChange={field.onChange}
                     getValue={(o) => o.id_organisme}
                     getLabel={(o) => `${o.nom_organisme} (${o.code_institutionnel})`}
-                    placeholder="Choisir l'organisme…"
+                    placeholder={t("clients.form.choisir_organisme")}
                   />
                 )}
               />
@@ -243,9 +247,9 @@ export function ClientFormDialog({
           </div>
 
           <Field
-            label="Adresse administrative"
+            label={t("clients.form.adresse_admin")}
             error={erreurs.fokontany?.message}
-            hint="Choisissez les niveaux dans l'ordre, jusqu'au fokontany."
+            hint={t("clients.form.adresse_admin_hint")}
           >
             <Controller
               control={form.control}
@@ -260,18 +264,18 @@ export function ClientFormDialog({
 
       {/* PRIVE et SIMPLE : localisation par ville seulement */}
       {type && !soa && (
-        <Field label="Ville" htmlFor="ville" error={erreurs.ville?.message}>
-          <Input id="ville" placeholder="Ex. Antananarivo" {...form.register("ville")} />
+        <Field label={t("clients.form.ville")} htmlFor="ville" error={erreurs.ville?.message}>
+          <Input id="ville" placeholder={t("clients.form.ville_ph")} {...form.register("ville")} />
         </Field>
       )}
 
       {type && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Téléphone" htmlFor="telephone" error={erreurs.telephone?.message}>
+          <Field label={t("clients.form.telephone")} htmlFor="telephone" error={erreurs.telephone?.message}>
             <Input id="telephone" inputMode="tel" {...form.register("telephone")} />
           </Field>
           <Field
-            label={type === "SIMPLE" ? "N° de CIN" : "NIF"}
+            label={type === "SIMPLE" ? t("clients.form.cin") : t("clients.form.nif")}
             htmlFor="cin_ou_nif"
             error={erreurs.cin_ou_nif?.message}
           >
@@ -281,7 +285,7 @@ export function ClientFormDialog({
       )}
 
       {soa && (
-        <Field label="Précisions d'adresse" htmlFor="adresse" error={erreurs.adresse?.message} hint="Facultatif : lot, rue, repère…">
+        <Field label={t("clients.form.precisions")} htmlFor="adresse" error={erreurs.adresse?.message} hint={t("clients.form.precisions_hint")}>
           <Textarea id="adresse" rows={2} {...form.register("adresse")} />
         </Field>
       )}

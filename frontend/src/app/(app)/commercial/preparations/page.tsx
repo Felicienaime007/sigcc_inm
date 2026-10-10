@@ -20,13 +20,8 @@ import { useAuth } from "@/lib/auth-context";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
 import { useApiMutation, useCrud, useRecordAction } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { CommandeLight, Preparation } from "@/types/commercial";
-
-const STATUTS = [
-  { value: "EN_COURS", label: "En cours" },
-  { value: "PRETE", label: "Prête" },
-  { value: "LIVREE", label: "Livrée" },
-];
 
 export default function PreparationsPage() {
   return (
@@ -37,15 +32,22 @@ export default function PreparationsPage() {
 }
 
 function Contenu() {
+  const { t } = useT();
   const { can } = useAuth();
   const liste = usePagedList<Preparation>("commercial/preparations", { ordering: "-date_prepa", refetchInterval: 10000 });
   const crud = useCrud<Preparation>("commercial/preparations");
-  const reserver = useRecordAction("commercial/preparations", "reserver", "Stock réservé.");
-  const terminer = useRecordAction("commercial/preparations", "terminer", "Préparation prête pour la livraison.");
+  const reserver = useRecordAction("commercial/preparations", "reserver", t("commercial.preparations.succes_reserve"));
+  const terminer = useRecordAction("commercial/preparations", "terminer", t("commercial.preparations.succes_terminee"));
   const creer = useApiMutation(
     async (commande: number) => (await api.post<Preparation>("/commercial/preparations/", { commande })).data,
-    { success: "Préparation créée.", silentError: true },
+    { success: t("commercial.preparations.succes_cree"), silentError: true },
   );
+
+  const STATUTS = [
+    { value: "EN_COURS", label: t("commercial.listes.prepa_en_cours") },
+    { value: "PRETE", label: t("commercial.listes.prepa_prete") },
+    { value: "LIVREE", label: t("commercial.listes.prepa_livree") },
+  ];
 
   const [creation, setCreation] = useState(false);
   const [commande, setCommande] = useState<number | null>(null);
@@ -55,7 +57,7 @@ function Contenu() {
 
   async function enregistrer() {
     setErreur(null);
-    if (commande === null) return setErreur("Choisissez la commande à préparer.");
+    if (commande === null) return setErreur(t("commercial.preparations.err_choisir_commande"));
     try {
       await creer.mutateAsync(commande);
       setCreation(false);
@@ -83,34 +85,38 @@ function Contenu() {
   }
 
   const colonnes: Column<Preparation>[] = [
-    { key: "cmd", header: "Commande", sortKey: "commande", cell: (p) => <span className="font-medium">{p.num_commande}</span> },
-    { key: "client", header: "Client", cell: (p) => p.nom_client },
+    { key: "cmd", header: "commercial.preparations.col_commande", sortKey: "commande", cell: (p) => <span className="font-medium">{p.num_commande}</span> },
+    { key: "client", header: "commercial.preparations.col_client", cell: (p) => p.nom_client },
     {
-      key: "lignes", header: "Produits",
-      cell: (p) => p.lignes.map((l) => `${l.quantite_preparee} × ${l.code_produit}`).join(", "),
+      key: "lignes", header: "commercial.preparations.col_produits",
+      cell: (p) => (
+        <span title={p.lignes.map((l) => `${l.quantite_preparee} × ${l.designation} (${l.code_produit})`).join("\n")}>
+          {p.lignes.map((l) => `${l.quantite_preparee} × ${l.designation}`).join(", ")}
+        </span>
+      ),
     },
-    { key: "date", header: "Créée le", sortKey: "date_prepa", cell: (p) => formatDateTime(p.date_prepa) },
-    { key: "statut", header: "Statut", cell: (p) => <StatusBadge statut={p.statut_prepa} /> },
+    { key: "date", header: "commercial.preparations.col_creee", sortKey: "date_prepa", cell: (p) => formatDateTime(p.date_prepa) },
+    { key: "statut", header: "commercial.preparations.col_statut", cell: (p) => <StatusBadge statut={p.statut_prepa} /> },
   ];
 
   return (
     <div>
       <PageHeader
-        title="Préparations de commandes"
-        description="Réservation du stock, suivi de la production et préparation avant livraison."
+        title={t("commercial.preparations.titre")}
+        description={t("commercial.preparations.description")}
         action={
           <Can privilege="preparation.create">
             <Button onClick={() => { setCommande(null); setErreur(null); setCreation(true); }}>
-              <Plus className="mr-2 h-4 w-4" /> Nouvelle préparation
+              <Plus className="mr-2 h-4 w-4" /> {t("commercial.preparations.nouvelle")}
             </Button>
           </Can>
         }
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="N° de commande ou client…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("commercial.preparations.ph_recherche")} />
         <FilterSelect
-          label="Statut" options={STATUTS}
+          label={t("commercial.preparations.filtre_statut")} options={STATUTS}
           value={String(liste.filters.statut ?? "")}
           onChange={(v) => liste.setFilter("statut", v)}
         />
@@ -125,26 +131,26 @@ function Contenu() {
         rowKey={(p) => p.id_preparation}
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucune préparation."
+        emptyMessage="commercial.preparations.vide"
         actions={(p) => (
           <>
-            <Button variant="ghost" size="icon" title="Détail" onClick={() => setDetail(p)}>
+            <Button variant="ghost" size="icon" title={t("commercial.preparations.detail")} aria-label={t("commercial.preparations.detail")} onClick={() => setDetail(p)}>
               <Eye className="h-4 w-4" />
             </Button>
             {can("preparation.update") && p.statut_prepa === "EN_COURS" && (
               <>
-                <Button variant="ghost" size="icon" title="Réserver le stock" disabled={reserver.isPending}
+                <Button variant="ghost" size="icon" title={t("commercial.preparations.reserver")} aria-label={t("commercial.preparations.reserver")} disabled={reserver.isPending}
                   onClick={() => agir("reserver", p.id_preparation)}>
                   <PackagePlus className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" title="Terminer la préparation" disabled={terminer.isPending}
+                <Button variant="ghost" size="icon" title={t("commercial.preparations.terminer_titre_long")} aria-label={t("commercial.preparations.terminer")} disabled={terminer.isPending}
                   onClick={() => agir("terminer", p.id_preparation)}>
                   <CheckCheck className="h-4 w-4" />
                 </Button>
               </>
             )}
             {can("preparation.delete") && p.statut_prepa !== "LIVREE" && (
-              <Button variant="ghost" size="icon" title="Supprimer" onClick={() => setASupprimer(p)}>
+              <Button variant="ghost" size="icon" title={t("commercial.preparations.supprimer")} aria-label={t("commercial.preparations.supprimer")} onClick={() => setASupprimer(p)}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
@@ -156,9 +162,9 @@ function Contenu() {
         <LignesDialog
           open
           onOpenChange={(o) => !o && setDetail(null)}
-          titre={`Préparation de ${detail.num_commande}`}
+          titre={t("commercial.preparations.dlg_titre", { x: detail.num_commande })}
           description={`${detail.nom_client} · ${formatDateTime(detail.date_prepa)}`}
-          libelleQuantite="Quantité préparée"
+          libelleQuantite={t("commercial.preparations.qte_preparee")}
           lignes={detail.lignes.map((l) => ({
             code_produit: l.code_produit, designation: l.designation, quantite: l.quantite_preparee,
           }))}
@@ -168,14 +174,14 @@ function Contenu() {
       <FormDialog
         open={creation}
         onOpenChange={setCreation}
-        title="Nouvelle préparation"
-        description="Les lignes de la commande sont copiées. La commande passe « en préparation »."
+        title={t("commercial.preparations.dlg_nouvelle_titre")}
+        description={t("commercial.preparations.dlg_nouvelle_desc")}
         onSubmit={(e) => { e?.preventDefault(); void enregistrer(); }}
         submitting={creer.isPending}
         error={erreur}
-        submitLabel="Créer la préparation"
+        submitLabel={t("commercial.preparations.dlg_nouvelle_btn")}
       >
-        <Field label="Commande validée">
+        <Field label={t("commercial.preparations.champ_commande")}>
           <RemoteSelect<CommandeLight>
             path="commercial/commandes"
             params={{ statut: "VALIDEE" }}
@@ -183,7 +189,7 @@ function Contenu() {
             onChange={setCommande}
             getValue={(c) => c.id_commande}
             getLabel={(c) => `${c.num_commande} — ${c.nom_client}`}
-            placeholder="Choisir la commande…"
+            placeholder={t("commercial.preparations.ph_commande")}
           />
         </Field>
       </FormDialog>
@@ -191,9 +197,9 @@ function Contenu() {
       <ConfirmDialog
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
-        title="Supprimer la préparation ?"
-        description="Les réservations de stock sont libérées et la commande redevient « validée ». Impossible si des lots de production y sont liés."
-        confirmLabel="Supprimer"
+        title={t("commercial.preparations.confirm_titre")}
+        description={t("commercial.preparations.confirm_desc")}
+        confirmLabel={t("commercial.preparations.confirm_btn")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}

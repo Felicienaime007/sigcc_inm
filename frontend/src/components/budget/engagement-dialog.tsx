@@ -11,6 +11,7 @@ import { versNombre } from "@/lib/clients";
 import { aujourdhui } from "@/lib/dates";
 import { getErrorMessage } from "@/lib/errors";
 import { formatAr, formatDate } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud, useOptions } from "@/lib/resource";
 import type { Client } from "@/types/clients";
 import type { Engagement, LigneBudget } from "@/types/budget";
@@ -34,11 +35,17 @@ export function EngagementDialog({
   const [montant, setMontant] = useState("");
   const [dateVisa, setDateVisa] = useState(engagement?.date_visa_cf ?? aujourdhui());
   const [erreur, setErreur] = useState<string | null>(null);
+  const { t } = useT();
 
   // Lignes du budget de l'organisme du SOA choisi
   const organismeId = client?.organisme ?? null;
   const lignes = useOptions<LigneBudget>("budget/lignes", { organisme: organismeId }, !edition && organismeId !== null);
   const ligne = lignes.data?.find((l) => l.id_ligne_budget === ligneId);
+  const libelleLigne = (l: LigneBudget) =>
+    t("budget.edlg.option_ligne", {
+      code: l.code_article, libelle: l.libelle_ligne, annee: l.annee_budgetaire,
+      dispo: formatAr(l.montant_disponible),
+    });
 
   const m = versNombre(montant);
   const montantValide = montant.trim() !== "" && Number.isFinite(m) && m > 0;
@@ -47,9 +54,9 @@ export function EngagementDialog({
 
   async function envoyer() {
     setErreur(null);
-    if (!numero.trim()) return setErreur("Le numéro d'engagement du Contrôle financier est obligatoire.");
-    if (!dateVisa) return setErreur("La date de visa est obligatoire.");
-    if (dateVisa > aujourdhui()) return setErreur("La date de visa ne peut pas être dans le futur.");
+    if (!numero.trim()) return setErreur(t("budget.edlg.err_numero"));
+    if (!dateVisa) return setErreur(t("budget.edlg.err_date"));
+    if (dateVisa > aujourdhui()) return setErreur(t("budget.edlg.err_futur"));
 
     try {
       if (edition) {
@@ -58,10 +65,10 @@ export function EngagementDialog({
           body: { num_engagement_cf: numero.trim(), date_visa_cf: dateVisa },
         });
       } else {
-        if (!client) return setErreur("Sélectionnez le SOA bénéficiaire.");
-        if (!ligne) return setErreur("Choisissez la ligne budgétaire.");
-        if (!montantValide) return setErreur("Le montant doit être supérieur à 0.");
-        if (insuffisant) return setErreur(`Crédit insuffisant : disponible ${formatAr(disponible)}.`);
+        if (!client) return setErreur(t("budget.edlg.err_soa"));
+        if (!ligne) return setErreur(t("budget.edlg.err_ligne"));
+        if (!montantValide) return setErreur(t("budget.edlg.err_montant"));
+        if (insuffisant) return setErreur(t("budget.edlg.err_insuffisant", { dispo: formatAr(disponible) }));
         await crud.create.mutateAsync({
           num_engagement_cf: numero.trim(),
           montant_engage: Math.round(m * 100) / 100,
@@ -80,30 +87,30 @@ export function EngagementDialog({
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={edition ? `Corriger l'engagement ${engagement.num_engagement_cf}` : "Nouvel engagement budgétaire"}
+      title={edition ? t("budget.edlg.titre_modif", { num: engagement.num_engagement_cf }) : t("budget.edlg.titre_nouveau")}
       description={
         edition
-          ? "Seuls le numéro du Contrôle financier et la date de visa sont modifiables. Pour changer le montant, la ligne ou le SOA : annulez l'engagement puis recréez-le."
-          : "À enregistrer après le visa du Contrôle financier. Le montant est immédiatement déduit du crédit de la ligne."
+          ? t("budget.edlg.desc_modif")
+          : t("budget.edlg.desc_nouveau")
       }
       onSubmit={(e) => { e?.preventDefault(); void envoyer(); }}
       submitting={crud.create.isPending || crud.update.isPending}
       error={erreur}
-      submitLabel={edition ? "Enregistrer" : "Enregistrer l'engagement"}
+      submitLabel={edition ? t("budget.edlg.enregistrer") : t("budget.edlg.enregistrer_engagement")}
       wide
     >
       {edition ? (
         <div className="grid gap-3 rounded-md border bg-muted/30 p-3 text-sm sm:grid-cols-2">
-          <div><p className="text-xs text-muted-foreground">SOA</p><p className="font-medium">{engagement.nom_client}</p></div>
-          <div><p className="text-xs text-muted-foreground">Ligne budgétaire</p>
-            <p className="font-medium">Article {engagement.code_article} · {engagement.annee_budgetaire}</p></div>
-          <div><p className="text-xs text-muted-foreground">Organisme</p><p className="font-medium">{engagement.nom_organisme}</p></div>
-          <div><p className="text-xs text-muted-foreground">Montant engagé</p>
+          <div><p className="text-xs text-muted-foreground">{t("budget.edlg.soa")}</p><p className="font-medium">{engagement.nom_client}</p></div>
+          <div><p className="text-xs text-muted-foreground">{t("budget.edlg.ligne")}</p>
+            <p className="font-medium">{t("budget.edlg.ligne_valeur", { code: engagement.code_article, annee: engagement.annee_budgetaire })}</p></div>
+          <div><p className="text-xs text-muted-foreground">{t("budget.edlg.organisme")}</p><p className="font-medium">{engagement.nom_organisme}</p></div>
+          <div><p className="text-xs text-muted-foreground">{t("budget.edlg.montant_engage")}</p>
             <p className="font-medium tabular-nums">{formatAr(engagement.montant_engage)}</p></div>
         </div>
       ) : (
         <>
-          <Field label="SOA bénéficiaire" hint="Ministère ou collectivité (code SOA). Son organisme détermine le budget à utiliser.">
+          <Field label={t("budget.edlg.soa_benef")} hint={t("budget.edlg.soa_benef_hint")}>
             <ClientSearch
               value={client}
               onChange={(c) => { setClient(c); setLigneId(null); }}
@@ -111,45 +118,46 @@ export function EngagementDialog({
             />
           </Field>
 
-          <Field label="Ligne budgétaire">
+          <Field label={t("budget.edlg.ligne_choix")}>
             <Select
               value={ligneId !== null ? String(ligneId) : ""}
               onValueChange={(v) => setLigneId(Number(v))}
               disabled={organismeId === null || lignes.isLoading}
+              items={Object.fromEntries((lignes.data ?? []).map((l) => [String(l.id_ligne_budget), libelleLigne(l)]))}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={
-                  client === null ? "Choisissez d'abord le SOA…"
-                    : lignes.isLoading ? "Chargement…" : "Choisir la ligne…"
+                  client === null ? t("budget.edlg.choisir_soa_dabord")
+                    : lignes.isLoading ? t("budget.edlg.chargement") : t("budget.edlg.choisir_ligne")
                 } />
               </SelectTrigger>
               <SelectContent>
                 {(lignes.data ?? []).map((l) => (
                   <SelectItem key={l.id_ligne_budget} value={String(l.id_ligne_budget)}>
-                    {l.code_article} — {l.libelle_ligne} · {l.annee_budgetaire} · dispo {formatAr(l.montant_disponible)}
+                    {libelleLigne(l)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {client !== null && !lignes.isLoading && (lignes.data?.length ?? 0) === 0 && (
               <p className="mt-1 text-xs text-amber-700">
-                L'organisme « {client.nom_organisme} » n'a aucune ligne budgétaire : créez d'abord son budget.
+                {t("budget.edlg.sans_ligne", { org: client.nom_organisme ?? "" })}
               </p>
             )}
           </Field>
 
-          <Field label="Montant à engager (Ar)" htmlFor="montant_engage">
+          <Field label={t("budget.edlg.montant")} htmlFor="montant_engage">
             <Input id="montant_engage" inputMode="decimal" value={montant} onChange={(e) => setMontant(e.target.value)} />
             {ligne && (
               <p className={`mt-1 text-xs ${insuffisant ? "text-destructive" : "text-muted-foreground"}`}>
                 {insuffisant ? (
                   <span className="inline-flex items-center gap-1">
-                    <AlertTriangle className="h-3.5 w-3.5" /> Crédit insuffisant : disponible {formatAr(ligne.montant_disponible)}.
+                    <AlertTriangle className="h-3.5 w-3.5" /> {t("budget.edlg.credit_insuffisant", { dispo: formatAr(ligne.montant_disponible) })}
                   </span>
                 ) : (
                   <>
-                    Disponible : {formatAr(ligne.montant_disponible)}
-                    {montantValide && <> → après engagement : {formatAr(disponible! - m)}</>}
+                    {t("budget.edlg.disponible", { dispo: formatAr(ligne.montant_disponible) })}
+                    {montantValide && <>{t("budget.edlg.apres_engagement", { reste: formatAr(disponible! - m) })}</>}
                   </>
                 )}
               </p>
@@ -159,14 +167,14 @@ export function EngagementDialog({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="N° d'engagement (Contrôle financier)" htmlFor="num_cf" hint="Unique.">
+        <Field label={t("budget.edlg.numero")} htmlFor="num_cf" hint={t("budget.edlg.numero_hint")}>
           <Input id="num_cf" value={numero} onChange={(e) => setNumero(e.target.value)} maxLength={100} />
         </Field>
-        <Field label="Date de visa du CF" htmlFor="date_visa">
+        <Field label={t("budget.edlg.date_visa")} htmlFor="date_visa">
           <Input id="date_visa" type="date" value={dateVisa} max={aujourdhui()} onChange={(e) => setDateVisa(e.target.value)} />
         </Field>
       </div>
-      {edition && <p className="text-xs text-muted-foreground">Visé le {formatDate(engagement.date_visa_cf)}.</p>}
+      {edition && <p className="text-xs text-muted-foreground">{t("budget.edlg.vise_le", { date: formatDate(engagement.date_visa_cf) })}</p>}
     </FormDialog>
   );
 }

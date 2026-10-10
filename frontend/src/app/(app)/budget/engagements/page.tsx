@@ -16,6 +16,7 @@ import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { anneeCourante } from "@/lib/dates";
 import { formatAr, formatDate } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 import { useOptions, useRecordAction } from "@/lib/resource";
 import type { Organisme } from "@/types/clients";
 import { STATUTS_ENGAGEMENT, type Engagement } from "@/types/budget";
@@ -32,8 +33,9 @@ export default function EngagementsPage() {
 
 function Contenu() {
   const { can } = useAuth();
+  const { t } = useT();
   const liste = usePagedList<Engagement>("budget/engagements", { ordering: "-date_visa_cf" });
-  const annuler = useRecordAction("budget/engagements", "annuler", "Engagement annulé, crédit restitué à la ligne.");
+  const annuler = useRecordAction("budget/engagements", "annuler", t("budget.enga.annule_toast"));
   const { data: organismes } = useOptions<Organisme>("clients/organismes", {}, can("organisme.view"));
 
   const [edition, setEdition] = useState<Edition>(null);
@@ -51,11 +53,11 @@ function Contenu() {
 
   const colonnes: Column<Engagement>[] = [
     {
-      key: "num", header: "N° engagement", sortKey: "num_engagement_cf",
+      key: "num", header: "budget.enga.col_num", sortKey: "num_engagement_cf",
       cell: (e) => <span className="font-medium">{e.num_engagement_cf}</span>,
     },
     {
-      key: "soa", header: "SOA",
+      key: "soa", header: "budget.enga.col_soa",
       cell: (e) => (
         <div>
           <p>{e.nom_client}</p>
@@ -64,27 +66,27 @@ function Contenu() {
       ),
     },
     {
-      key: "ligne", header: "Ligne budgétaire",
+      key: "ligne", header: "budget.enga.col_ligne",
       cell: (e) => (
         <div>
-          <p>Article {e.code_article} · {e.annee_budgetaire}</p>
+          <p>{t("budget.enga.ligne_valeur", { code: e.code_article, annee: e.annee_budgetaire })}</p>
           <p className="text-xs text-muted-foreground">{e.nom_organisme}</p>
         </div>
       ),
     },
     {
-      key: "montant", header: "Montant", className: "text-right tabular-nums", sortKey: "montant_engage",
+      key: "montant", header: "budget.enga.col_montant", className: "text-right tabular-nums", sortKey: "montant_engage",
       cell: (e) => formatAr(e.montant_engage),
     },
-    { key: "visa", header: "Visé le", sortKey: "date_visa_cf", cell: (e) => formatDate(e.date_visa_cf) },
+    { key: "visa", header: "budget.enga.col_visa", sortKey: "date_visa_cf", cell: (e) => formatDate(e.date_visa_cf) },
     {
-      key: "statut", header: "Statut",
+      key: "statut", header: "budget.enga.col_statut",
       cell: (e) => (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge statut={e.statut_engagement} />
           {e.id_commande && can("commande.view") && (
             <Link href={`/commercial/commandes/${e.id_commande}`} className="text-xs text-muted-foreground hover:underline">
-              Commande liée
+              {t("budget.enga.commande_liee")}
             </Link>
           )}
         </div>
@@ -95,12 +97,12 @@ function Contenu() {
   return (
     <div>
       <PageHeader
-        title="Engagements budgétaires"
-        description="Crédits engagés pour les SOA après visa du Contrôle financier. Un engagement visé est consommé par la validation d'une commande."
+        title={t("budget.enga.titre")}
+        description={t("budget.enga.description")}
         action={
           <Can privilege="engagement.create">
             <Button onClick={() => setEdition({ mode: "create" })}>
-              <Plus className="mr-2 h-4 w-4" /> Nouvel engagement
+              <Plus className="mr-2 h-4 w-4" /> {t("budget.enga.nouveau")}
             </Button>
           </Can>
         }
@@ -109,15 +111,15 @@ function Contenu() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SearchInput
           value={liste.searchInput} onChange={liste.setSearchInput}
-          placeholder="N° d'engagement, SOA ou code SOA…"
+          placeholder={t("budget.enga.recherche")}
         />
         <FilterSelect
-          label="Statut" options={STATUTS_ENGAGEMENT}
+          label={t("budget.enga.filtre_statut")} options={STATUTS_ENGAGEMENT.map((o) => ({ value: o.value, label: t(o.label) }))}
           value={String(liste.filters.statut ?? "")}
           onChange={(v) => liste.setFilter("statut", v)}
         />
         <FilterSelect
-          label="Année" className="w-36"
+          label={t("budget.enga.filtre_annee")} className="w-36"
           options={[anneeCourante() + 1, anneeCourante(), anneeCourante() - 1, anneeCourante() - 2]
             .map((a) => ({ value: String(a), label: String(a) }))}
           value={String(liste.filters.annee ?? "")}
@@ -125,7 +127,7 @@ function Contenu() {
         />
         {can("organisme.view") && (
           <FilterSelect
-            label="Organisme" className="w-60"
+            label={t("budget.enga.filtre_organisme")} className="w-60"
             options={(organismes ?? []).map((o) => ({ value: String(o.id_organisme), label: o.nom_organisme }))}
             value={String(liste.filters.organisme ?? "")}
             onChange={(v) => liste.setFilter("organisme", v)}
@@ -142,17 +144,18 @@ function Contenu() {
         rowKey={(e) => e.id_engagement}
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun engagement."
+        emptyMessage="budget.enga.vide"
         actions={(e) =>
           e.statut_engagement === "VISE" && can("engagement.update") ? (
             <>
-              <Button variant="ghost" size="icon" title="Corriger le n° ou la date de visa" onClick={() => setEdition({ mode: "edit", item: e })}>
+              <Button variant="ghost" size="icon" title={t("budget.enga.corriger")} aria-label={t("budget.enga.corriger")} onClick={() => setEdition({ mode: "edit", item: e })}>
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost" size="icon"
-                title={e.id_commande ? "Rattaché à une commande : annulez d'abord la commande" : "Annuler l'engagement"}
-                disabled={e.id_commande !== null}
+                title={e.id_commande ? t("budget.enga.rattache_hint") : t("budget.enga.annuler")}
+                aria-label={e.id_commande ? t("budget.enga.rattache_hint") : t("budget.enga.annuler")}
+                disabled={e.id_commande != null}
                 onClick={() => setAAnnuler(e)}
               >
                 <Ban className="h-4 w-4 text-destructive" />
@@ -169,9 +172,13 @@ function Contenu() {
       <ConfirmDialog
         open={aAnnuler !== null}
         onOpenChange={(o) => !o && setAAnnuler(null)}
-        title="Annuler l'engagement ?"
-        description={`L'engagement ${aAnnuler?.num_engagement_cf ?? ""} (${formatAr(aAnnuler?.montant_engage)}) est annulé et son montant est restitué au crédit de la ligne ${aAnnuler?.code_article ?? ""}. Cette action est définitive.`}
-        confirmLabel="Annuler l'engagement"
+        title={t("budget.enga.annuler_titre")}
+        description={t("budget.enga.annuler_desc", {
+          num: aAnnuler?.num_engagement_cf ?? "",
+          montant: formatAr(aAnnuler?.montant_engage),
+          code: aAnnuler?.code_article ?? "",
+        })}
+        confirmLabel={t("budget.enga.annuler_btn")}
         destructive
         loading={annuler.isPending}
         onConfirm={confirmerAnnulation}

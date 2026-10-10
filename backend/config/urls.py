@@ -15,4 +15,7 @@ urlpatterns = [
     path('api/recouvrement/', include('apps.recouvrement.urls')),
     path('api/audit/', include('apps.audit.urls')),
     path('api/statistiques/', include('apps.statistiques.urls')),
+    path('api/editions/', include('apps.editions.urls')),
+    path('api/etats/', include('apps.etats.urls')),
+    path('api/notifications/', include('apps.notifications.urls')),
 ]

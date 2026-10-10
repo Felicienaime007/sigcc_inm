@@ -14,6 +14,10 @@ VOLETS = ('A', 'B', 'C', 'D', 'E')
 NB_VOLETS_CARNET = NB_FEUILLES * len(VOLETS)
 
 
+# Coupures officielles de l'Ariary pour le comptage physique de caisse
+COUPURES = (20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10)
+
+
 class Caisse(models.Model):
     id_caisse = models.AutoField(primary_key=True)
     code_caisse = models.CharField(max_length=20, unique=True)
@@ -35,6 +39,10 @@ class Reglement(models.Model):
         CHEQUE = 'CHEQUE', 'Chèque'
         VIREMENT_TRESOR = 'VIREMENT_TRESOR', 'Virement du Trésor'
 
+    class Statut(models.TextChoices):
+        ACTIF = 'ACTIF', 'Actif'
+        ANNULE = 'ANNULE', 'Annulé (contre-passé)'
+
     id_reglement = models.AutoField(primary_key=True)
     mode_reglement = models.CharField(max_length=30, choices=Mode.choices)
     date_reglement = models.DateTimeField(default=timezone.now)
@@ -44,6 +52,12 @@ class Reglement(models.Model):
         Facture, on_delete=models.PROTECT,
         db_column='id_facture', related_name='reglements',
     )
+    # Correction d'une saisie erronée : on ne supprime jamais, on contre-passe.
+    statut = models.CharField(
+        max_length=30, choices=Statut.choices, default=Statut.ACTIF
+    )
+    motif_annulation = models.TextField(null=True, blank=True)
+    date_annulation = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'reglement'
@@ -85,12 +99,21 @@ class Quittance(models.Model):
         D = 'D'
         E = 'E'
 
+    class Statut(models.TextChoices):
+        EMISE = 'EMISE', 'Émise'
+        ANNULEE = 'ANNULEE', 'Annulée (contre-passée)'
+
     id_quittance = models.AutoField(primary_key=True)
     num_feuille = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(NB_FEUILLES)]
     )
     attribut_volet = models.CharField(max_length=1, choices=Volet.choices)
     date_emission = models.DateTimeField(default=timezone.now)
+    # Contre-passation du règlement : la quittance physique reste tracée mais
+    # marquée ANNULEE (le volet n'est jamais réutilisable).
+    statut = models.CharField(
+        max_length=30, choices=Statut.choices, default=Statut.EMISE
+    )
     livre = models.ForeignKey(
         LivreQuittance, on_delete=models.PROTECT,
         db_column='id_livre', related_name='quittances',
@@ -145,3 +168,77 @@ class LivreCaisse(models.Model):
 
     def __str__(self):
         return f'{self.type_operation} {self.montant_op}'
+
+
+class ArreteCaisse(models.Model):
+    """Arrêté de caisse journalier : fige la journée, constate comptage et écart."""
+
+    class Statut(models.TextChoices):
+        BROUILLON = 'BROUILLON', 'Brouillon'
+        VALIDE = 'VALIDE', 'Validé'
+
+    id_arrete = models.AutoField(primary_key=True)
+    caisse = models.ForeignKey(
+        Caisse, on_delete=models.PROTECT,
+        db_column='id_caisse', related_name='arretes',
+    )
+    date_arrete = models.DateField(default=timezone.localdate)
+    # Snapshot au moment de la validation
+    total_entrees = models.DecimalField(**MONTANT, default=0)
+    total_sorties = models.DecimalField(**MONTANT, default=0)
+    solde_theorique = models.DecimalField(**MONTANT, default=0)
+    montant_compte = models.DecimalField(**MONTANT, default=0)
+    ecart = models.DecimalField(**MONTANT, default=0)
+    # Détail du comptage (billets/pièces) en JSON texte : {"10000": 12, ...}
+    detail_billets = models.TextField(null=True, blank=True)
+    statut = models.CharField(
+        max_length=30, choices=Statut.choices, default=Statut.BROUILLON
+    )
+    date_validation = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'arrete_caisse'
+        ordering = ['-date_arrete', '-id_arrete']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['caisse', 'date_arrete'], name='uk_arrete_caisse_date'
+            )
+        ]
+
+    def __str__(self):
+        return f'Arrêté {self.caisse.code_caisse} {self.date_arrete} ({self.statut})'
+
+
+class RemiseBanque(models.Model):
+    """Remise en banque des espèces/chèques de la caisse (bordereau traçable)."""
+
+    class Statut(models.TextChoices):
+        PREPAREE = 'PREPAREE', 'Préparée'
+        REMISE = 'REMISE', 'Remise en banque'
+
+    id_remise = models.AutoField(primary_key=True)
+    caisse = models.ForeignKey(
+        Caisse, on_delete=models.PROTECT,
+        db_column='id_caisse', related_name='remises',
+    )
+    date_remise = models.DateTimeField(default=timezone.now)
+    montant = models.DecimalField(**MONTANT, validators=[MinValueValidator(Decimal('0.01'))])
+    reference_bordereau = models.CharField(max_length=100, unique=True)
+    # Arrêté de caisse associé (optionnel) : la remise solde la journée comptée.
+    arrete = models.ForeignKey(
+        ArreteCaisse, on_delete=models.SET_NULL, null=True, blank=True,
+        db_column='id_arrete', related_name='remises',
+    )
+    # ESPECES et/ou CHEQUE, séparés par virgule
+    modes = models.CharField(max_length=50, default='ESPECES')
+    statut = models.CharField(
+        max_length=30, choices=Statut.choices, default=Statut.PREPAREE
+    )
+    date_statut = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'remise_banque'
+        ordering = ['-date_remise', '-id_remise']
+
+    def __str__(self):
+        return f'Remise {self.reference_bordereau} ({self.montant} Ar)'

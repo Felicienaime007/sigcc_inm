@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,11 +24,29 @@ export function FormDialog({
   open, onOpenChange, title, description, onSubmit, submitting, error,
   submitLabel = "Enregistrer", wide, children,
 }: Props) {
+  const cadre = useRef<HTMLDivElement>(null);
+
+  // Confort de saisie : à l'ouverture, le focus va sur le premier champ
+  // (sauf si un champ porte déjà autoFocus, géré par le navigateur).
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      const racine = cadre.current;
+      if (!racine || racine.querySelector("[autofocus]")) return;
+      const cible = racine.querySelector<HTMLElement>(
+        "input:not(:disabled), textarea:not(:disabled), button:not(:disabled), [tabindex]:not([tabindex='-1'])",
+      );
+      cible?.focus({ preventScroll: true });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [open ]);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
       <DialogContent
         className={`${wide ? "sm:max-w-2xl" : "sm:max-w-md"} max-h-[90vh] overflow-y-auto`}
       >
+        <div ref={cadre}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
@@ -52,6 +71,7 @@ export function FormDialog({
             </Button>
           </DialogFooter>
         </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

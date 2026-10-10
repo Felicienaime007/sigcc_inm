@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Eye, Receipt} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { RequirePrivilege } from "@/components/can";
+import { ImprimerButton } from "@/components/editions/imprimer-button";
 import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
@@ -22,6 +22,7 @@ import { STATUTS_PAIEMENT, TYPES_FACTURATION, libelleFacturation } from "@/lib/c
 import { getErrorMessage } from "@/lib/errors";
 import { formatAr, formatDateTime } from "@/lib/format";
 import { useApiMutation } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { CommandeLight, Facture } from "@/types/commercial";
 
 
@@ -35,7 +36,7 @@ export default function FacturesPage() {
 }
 
 function Contenu() {
-  const router = useRouter();
+  const { t } = useT();
   const { can } = useAuth();
   // Rafraîchissement automatique : le caissier et la réception voient l'évolution des paiements
   const liste = usePagedList<Facture>("commercial/factures", { ordering: "-date_facture", refetchInterval: 8000 });
@@ -45,12 +46,12 @@ function Contenu() {
   const [erreur, setErreur] = useState<string | null>(null);
   const facturerCommande = useApiMutation(
     async (id: number) => (await api.post<Facture>("/commercial/factures/", { commande: id })).data,
-    { success: "Facture créée.", silentError: true },
+    { success: t("commercial.factures.succes_cree"), silentError: true },
   );
 
   async function envoyer() {
     setErreur(null);
-    if (commande === null) return setErreur("Choisissez la commande à facturer.");
+    if (commande === null) return setErreur(t("commercial.factures.err_choisir_commande"));
     try {
       await facturerCommande.mutateAsync(commande);
       setFacturer(false);
@@ -61,46 +62,46 @@ function Contenu() {
 
   const colonnes: Column<Facture>[] = [
     {
-      key: "num", header: "Facture", sortKey: "id_facture",
+      key: "num", header: "commercial.factures.col_facture", sortKey: "id_facture",
       cell: (f) => (
         <Link href={`/commercial/factures/${f.id_facture}`} className="font-medium hover:underline">
           {f.num_facture}
         </Link>
       ),
     },
-    { key: "date", header: "Date", sortKey: "date_facture", cell: (f) => formatDateTime(f.date_facture) },
+    { key: "date", header: "commercial.factures.col_date", sortKey: "date_facture", cell: (f) => formatDateTime(f.date_facture) },
     {
-      key: "client", header: "Client",
+      key: "client", header: "commercial.factures.col_client",
       cell: (f) => (
         <div>
           <p>{f.nom_client}</p>
           <p className="text-xs text-muted-foreground">
-            {f.num_commande ? `Commande ${f.num_commande}` : <Badge variant="outline">Comptoir</Badge>}
+            {f.num_commande ? t("commercial.factures.commande_prefixe", { x: f.num_commande }) : <Badge variant="outline">{t("commercial.factures.comptoir")}</Badge>}
           </p>
         </div>
       ),
     },
     {
-      key: "ttc", header: "Total TTC", className: "text-right tabular-nums",
+      key: "ttc", header: "commercial.factures.col_ttc", className: "text-right tabular-nums",
       cell: (f) => formatAr(f.montant_ttc),
     },
     {
-      key: "reste", header: "Reste à payer", className: "text-right tabular-nums",
+      key: "reste", header: "commercial.factures.col_reste", className: "text-right tabular-nums",
       cell: (f) => formatAr(f.reste_a_payer),
     },
-    { key: "type", header: "Mode", cell: (f) => libelleFacturation(f.type_facturation) },
-    { key: "statut", header: "Paiement", cell: (f) => <StatusBadge statut={f.statut_paiement} /> },
+    { key: "type", header: "commercial.factures.col_mode", cell: (f) => libelleFacturation(f.type_facturation, t) },
+    { key: "statut", header: "commercial.factures.col_paiement", cell: (f) => <StatusBadge statut={f.statut_paiement} /> },
   ];
 
   return (
     <div>
       <PageHeader
-        title="Factures"
-        description="Ventes comptoir et factures de commandes livrées. Mise à jour automatique."
+        title={t("commercial.factures.titre")}
+        description={t("commercial.factures.description")}
         action={
           can("facture.create") && can("commande.view") && (
             <Button onClick={() => { setCommande(null); setErreur(null); setFacturer(true); }}>
-              <Receipt className="mr-2 h-4 w-4" /> Facturer une commande
+              <Receipt className="mr-2 h-4 w-4" /> {t("commercial.factures.facturer_commande")}
             </Button>
           )
         }
@@ -110,30 +111,30 @@ function Contenu() {
         <SearchInput
           value={liste.searchInput}
           onChange={liste.setSearchInput}
-          placeholder="N° de facture, commande ou client…"
+          placeholder={t("commercial.factures.ph_recherche")}
         />
         <FilterSelect
-          label="Paiement" options={STATUTS_PAIEMENT}
+          label={t("commercial.factures.filtre_paiement")} options={STATUTS_PAIEMENT.map((o) => ({ value: o.value, label: t(o.label) }))}
           value={String(liste.filters.statut ?? "")}
           onChange={(v) => liste.setFilter("statut", v)}
         />
         <FilterSelect
-          label="Mode" options={TYPES_FACTURATION} className="w-52"
+          label={t("commercial.factures.filtre_mode")} options={TYPES_FACTURATION.map((o) => ({ value: o.value, label: t(o.label) }))} className="w-52"
           value={String(liste.filters.type_facturation ?? "")}
           onChange={(v) => liste.setFilter("type_facturation", v)}
         />
         <FilterSelect
-          label="Origine" className="w-48"
+          label={t("commercial.factures.filtre_origine")} className="w-48"
           options={[
-            { value: "true", label: "Comptoir" },
-            { value: "false", label: "Commande" },
+            { value: "true", label: t("commercial.factures.origine_comptoir") },
+            { value: "false", label: t("commercial.factures.origine_commande") },
           ]}
           value={String(liste.filters.comptoir ?? "")}
           onChange={(v) => liste.setFilter("comptoir", v)}
         />
         <FilterSelect
-          label="Livraison" className="w-44"
-          options={[{ value: "true", label: "À livrer" }]}
+          label={t("commercial.factures.filtre_livraison")} className="w-44"
+          options={[{ value: "true", label: t("commercial.factures.filtre_a_livrer") }]}
           value={String(liste.filters.a_livrer ?? "")}
           onChange={(v) => liste.setFilter("a_livrer", v)}
         />
@@ -151,25 +152,32 @@ function Contenu() {
         onPageChange={liste.setPage}
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucune facture."
+        emptyMessage="commercial.factures.vide"
         actions={(f) => (
-          <Button variant="ghost" size="icon" title="Voir" onClick={() => router.push(`/commercial/factures/${f.id_facture}`)}>
-            <Eye className="h-4 w-4" />
-          </Button>
+          <>
+            <ImprimerButton icone chemin={`facture/${f.id_facture}`} libelle={t("commercial.factures.imprimer")} />
+            <Link
+              href={`/commercial/factures/${f.id_facture}`}
+              className={buttonVariants({ variant: "ghost", size: "icon" })}
+              title={t("commercial.factures.voir")}
+            >
+              <Eye className="h-4 w-4" />
+            </Link>
+          </>
         )}
       />
 
       <FormDialog
         open={facturer}
         onOpenChange={setFacturer}
-        title="Facturer une commande livrée"
-        description="La facture reprend les quantités du bon de livraison et les prix de la commande."
+        title={t("commercial.factures.dlg_titre")}
+        description={t("commercial.factures.dlg_description")}
         onSubmit={(e) => { e?.preventDefault(); void envoyer(); }}
         submitting={facturerCommande.isPending}
         error={erreur}
-        submitLabel="Créer la facture"
+        submitLabel={t("commercial.factures.dlg_valider")}
       >
-        <Field label="Commande livrée">
+        <Field label={t("commercial.factures.champ_commande")}>
           <RemoteSelect<CommandeLight>
             path="commercial/commandes"
             params={{ statut: "LIVREE" }}
@@ -177,7 +185,7 @@ function Contenu() {
             onChange={setCommande}
             getValue={(c) => c.id_commande}
             getLabel={(c) => `${c.num_commande} — ${c.nom_client}`}
-            placeholder="Choisir la commande…"
+            placeholder={t("commercial.factures.ph_commande")}
           />
         </Field>
       </FormDialog>

@@ -198,12 +198,14 @@ class FactureSerializer(serializers.ModelSerializer):
         fields = [
             'id_facture', 'num_facture', 'date_facture', 'montant_ht', 'tva', 'montant_ttc',
             'type_facturation', 'statut_paiement',
+            'date_annulation', 'motif_annulation',
             'commande', 'num_commande', 'client', 'nom_client', 'type_client',
             'id_livraison', 'lignes', 'total_regle', 'reste_a_payer',
         ]
         read_only_fields = [
             'num_facture', 'date_facture', 'montant_ht', 'tva',
             'type_facturation', 'statut_paiement',
+            'date_annulation', 'motif_annulation',
         ]
 
     def get_nom_client(self, obj):
@@ -254,6 +256,18 @@ class FactureSerializer(serializers.ModelSerializer):
                 )
             if not attrs.get('lignes'):
                 raise serializers.ValidationError({'lignes': "Au moins une ligne est requise."})
+        # Client bloqué ou en contentieux : aucune nouvelle facture (sauf comptoir SIMPLE,
+        # qui n'a ni solvabilité ni recouvrement et règle comptant).
+        if cible.type_client != cible.TypeClient.SIMPLE:
+            from apps.recouvrement.services import client_bloque, client_en_contentieux
+            if client_bloque(cible):
+                raise serializers.ValidationError(
+                    {'client': "Client bloqué : facturation impossible."}
+                )
+            if client_en_contentieux(cible):
+                raise serializers.ValidationError(
+                    {'client': "Client en contentieux : facturation impossible."}
+                )
         return attrs
 
     def create(self, validated):
@@ -267,7 +281,12 @@ class FactureSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         {'commande': "La commande doit être LIVREE avant d'être facturée."}
                     )
-                bl = cmd.preparation.bon_livraison
+                preparation = getattr(cmd, 'preparation', None)
+                bl = getattr(preparation, 'bon_livraison', None) if preparation else None
+                if bl is None:
+                    raise serializers.ValidationError(
+                        {'commande': "Aucun bon de livraison pour cette commande."}
+                    )
                 prix = {l.produit_id: l.prix_unitaire_facture for l in cmd.lignes.all()}
                 lignes = [
                     {
@@ -334,8 +353,9 @@ class AvoirSerializer(serializers.ModelSerializer):
         fields = [
             'id_avoir', 'num_avoir', 'date_avoir', 'motif',
             'facture', 'num_facture', 'lignes', 'total_avoir',
+            'statut_remboursement', 'date_remboursement',
         ]
-        read_only_fields = ['num_avoir', 'date_avoir']
+        read_only_fields = ['num_avoir', 'date_avoir', 'statut_remboursement', 'date_remboursement']
 
     def get_total_avoir(self, obj):
         return sum((l.montant_avoir for l in obj.lignes.all()), Decimal('0'))

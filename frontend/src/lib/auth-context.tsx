@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, setSessionExpiredHandler } from "./api";
 import { tokenStore } from "./token-store";
+import { poserMarqueurSession, retirerMarqueurSession } from "./session-cookie";
 import type { LoginResponse, Profil } from "@/types/auth";
 
 interface AuthContextValue {
@@ -28,16 +29,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => Boolean(tokenStore.getAccess()) || Boolean(tokenStore.getRefresh()),
   );
 
-  // Restauration de la session au chargement de la page
+  // Restauration de la session dans l'onglet courant uniquement
+  // (sessionStorage : aucun token après un nouveau lancement → /login).
   useEffect(() => {
+    // Sans token dans l'onglet courant : rien à restaurer (`loading` vaut déjà false).
     if (!tokenStore.getAccess() && !tokenStore.getRefresh()) return;
     let ignore = false; // garde anti-démontage : pas de setState après unmount
     api
       .get<Profil>("/auth/me/") // si l'access est périmé, l'intercepteur renouvelle puis rejoue
       .then((res) => {
-        if (!ignore) setUser(res.data);
+        if (ignore) return;
+        setUser(res.data);
+        poserMarqueurSession();
       })
-      .catch(() => tokenStore.clear())
+      .catch(() => {
+        tokenStore.clear();
+        retirerMarqueurSession();
+      })
       .finally(() => {
         if (!ignore) setLoading(false);
       });
@@ -46,9 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Session expirée en cours d'utilisation : retour à la connexion
+  // Session expirée en cours d'utilisation : session invalidée + retour à la connexion
   useEffect(() => {
     setSessionExpiredHandler(() => {
+      tokenStore.clear();
+      retirerMarqueurSession();
       queryClient.clear();
       setUser(null);
       router.replace("/login");
@@ -59,7 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (identifiant: string, password: string) => {
     const { data } = await api.post<LoginResponse>("/auth/login/", { identifiant, password });
     tokenStore.set(data.access, data.refresh);
+    poserMarqueurSession();
     setUser(data.user);
+    // Volontairement : aucune restauration du dernier espace consulté,
+    // la navigation post-connexion se fait toujours vers "/" (voir login/page).
   }, []);
 
   const logout = useCallback(async () => {
@@ -69,7 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* on déconnecte quand même localement */
     }
+    // La déconnexion invalide la session localement puis redirige vers /login
     tokenStore.clear();
+    retirerMarqueurSession();
     queryClient.clear();
     setUser(null);
     router.replace("/login");

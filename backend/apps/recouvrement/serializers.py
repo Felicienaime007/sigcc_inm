@@ -6,7 +6,19 @@ from apps.commercial.models import Facture
 from apps.commercial.serializers import provisoire
 
 from . import services
-from .models import LigneRecouvrement, Recouvrement
+from .models import LigneRecouvrement, Recouvrement, Relance
+
+
+class RelanceSerializer(serializers.ModelSerializer):
+    auteur_nom = serializers.CharField(source='auteur.nom_complet', read_only=True, default=None)
+
+    class Meta:
+        model = Relance
+        fields = [
+            'id_relance', 'date_relance', 'niveau', 'nature', 'canal',
+            'commentaire', 'auteur', 'auteur_nom',
+        ]
+        read_only_fields = fields
 
 
 class LigneRecouvrementSerializer(serializers.ModelSerializer):
@@ -31,6 +43,7 @@ class LigneRecouvrementSerializer(serializers.ModelSerializer):
 
 class RecouvrementSerializer(serializers.ModelSerializer):
     lignes = LigneRecouvrementSerializer(many=True, read_only=True)
+    relances = RelanceSerializer(many=True, read_only=True)
     factures = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Facture.objects.all(), write_only=True
     )
@@ -43,7 +56,7 @@ class RecouvrementSerializer(serializers.ModelSerializer):
         fields = [
             'id_recouvrement', 'num_dossier', 'date_relance', 'niveau_relance',
             'statut_dossier', 'client', 'nom_client', 'total_a_recouvrer',
-            'lignes', 'factures',
+            'lignes', 'relances', 'factures',
         ]
         read_only_fields = ['num_dossier', 'date_relance', 'niveau_relance', 'statut_dossier']
 
@@ -96,4 +109,11 @@ class RecouvrementSerializer(serializers.ModelSerializer):
                 )
                 for f in factures
             ])
+            # Première trace : l'ouverture du dossier (niveau 1)
+            auteur = getattr(self.context.get('request'), 'user', None)
+            Relance.objects.create(
+                dossier=dossier, niveau=1, nature=Relance.Nature.OUVERTURE,
+                auteur=auteur if getattr(auteur, 'pk', None) else None,
+                commentaire='',
+            )
         return dossier

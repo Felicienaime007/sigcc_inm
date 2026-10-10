@@ -15,11 +15,13 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { ImprimerButton } from "@/components/editions/imprimer-button";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { anneeCourante } from "@/lib/dates";
 import { formatAr, formatDate } from "@/lib/format";
 import { useCrud } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { Devis } from "@/types/commercial";
 
 type Edition = { mode: "create" } | { mode: "edit"; item: Devis } | null;
@@ -33,12 +35,14 @@ export default function DevisPage() {
 }
 
 function StatutDevis({ d }: { d: Devis }) {
-  if (d.id_commande) return <Badge variant="secondary">Converti en commande</Badge>;
-  if (d.est_expire) return <Badge variant="destructive">Expiré</Badge>;
-  return <Badge variant="outline">Valable</Badge>;
+  const { t } = useT();
+  if (d.id_commande) return <Badge variant="secondary">{t("commercial.devis.statut_converti")}</Badge>;
+  if (d.est_expire) return <Badge variant="destructive">{t("commercial.devis.statut_expire")}</Badge>;
+  return <Badge variant="outline">{t("commercial.devis.statut_valable")}</Badge>;
 }
 
 function Contenu() {
+  const { t } = useT();
   const { can } = useAuth();
   const router = useRouter();
   const liste = usePagedList<Devis>("commercial/devis", { ordering: "-date_devis" });
@@ -60,19 +64,19 @@ function Contenu() {
   }
 
   const colonnes: Column<Devis>[] = [
-    { key: "num", header: "Devis", sortKey: "id_devis", cell: (d) => <span className="font-medium">{d.num_devis}</span> },
-    { key: "date", header: "Date", sortKey: "date_devis", cell: (d) => formatDate(d.date_devis) },
-    { key: "client", header: "Client", cell: (d) => d.nom_client },
-    { key: "validite", header: "Valable jusqu'au", cell: (d) => formatDate(d.date_expiration) },
-    { key: "total", header: "Total HT", className: "text-right tabular-nums", cell: (d) => formatAr(d.total) },
+    { key: "num", header: "commercial.devis.col_devis", sortKey: "id_devis", cell: (d) => <span className="font-medium">{d.num_devis}</span> },
+    { key: "date", header: "commercial.devis.col_date", sortKey: "date_devis", cell: (d) => formatDate(d.date_devis) },
+    { key: "client", header: "commercial.devis.col_client", cell: (d) => d.nom_client },
+    { key: "validite", header: "commercial.devis.col_validite", cell: (d) => formatDate(d.date_expiration) },
+    { key: "total", header: "commercial.devis.col_total", className: "text-right tabular-nums", cell: (d) => formatAr(d.total) },
     {
-      key: "statut", header: "Statut",
+      key: "statut", header: "commercial.devis.col_statut",
       cell: (d) => (
         <div className="flex flex-col items-start gap-1">
           <StatutDevis d={d} />
           {d.id_commande && can("commande.view") && (
             <Link href={`/commercial/commandes/${d.id_commande}`} className="text-xs text-muted-foreground hover:underline">
-              Voir la commande
+              {t("commercial.devis.voir_commande")}
             </Link>
           )}
         </div>
@@ -83,21 +87,21 @@ function Contenu() {
   return (
     <div>
       <PageHeader
-        title="Devis proforma"
-        description="Offres de prix aux clients. Un devis valable peut être converti en commande."
+        title={t("commercial.devis.titre")}
+        description={t("commercial.devis.description")}
         action={
           <Can privilege="devis.create">
             <Button onClick={() => setEdition({ mode: "create" })}>
-              <Plus className="mr-2 h-4 w-4" /> Nouveau devis
+              <Plus className="mr-2 h-4 w-4" /> {t("commercial.devis.nouveau")}
             </Button>
           </Can>
         }
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="N° de devis ou client…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("commercial.devis.ph_recherche")} />
         <FilterSelect
-          label="Année" className="w-36"
+          label={t("commercial.devis.filtre_annee")} className="w-36"
           options={[anneeCourante(), anneeCourante() - 1, anneeCourante() - 2].map((a) => ({ value: String(a), label: String(a) }))}
           value={String(liste.filters.annee ?? "")}
           onChange={(v) => liste.setFilter("annee", v)}
@@ -113,26 +117,27 @@ function Contenu() {
         rowKey={(d) => d.id_devis}
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun devis."
+        emptyMessage="commercial.devis.vide"
         actions={(d) => {
           const modifiable = !d.id_commande;
           return (
             <>
-              <Button variant="ghost" size="icon" title="Détail" onClick={() => setDetail(d)}>
+              <ImprimerButton icone chemin={`devis/${d.id_devis}`} libelle={t("commercial.devis.imprimer")} />
+              <Button variant="ghost" size="icon" title={t("commercial.devis.detail")} aria-label={t("commercial.devis.detail")} onClick={() => setDetail(d)}>
                 <Eye className="h-4 w-4" />
               </Button>
               {modifiable && !d.est_expire && can("commande.create") && (
-                <Button variant="ghost" size="icon" title="Créer la commande" onClick={() => setCommandeDe(d)}>
+                <Button variant="ghost" size="icon" title={t("commercial.devis.creer_commande")} aria-label={t("commercial.devis.creer_commande")} onClick={() => setCommandeDe(d)}>
                   <FilePlus2 className="h-4 w-4" />
                 </Button>
               )}
               {modifiable && can("devis.update") && (
-                <Button variant="ghost" size="icon" title="Modifier" onClick={() => setEdition({ mode: "edit", item: d })}>
+                <Button variant="ghost" size="icon" title={t("commercial.devis.modifier")} aria-label={t("commercial.devis.modifier")} onClick={() => setEdition({ mode: "edit", item: d })}>
                   <Pencil className="h-4 w-4" />
                 </Button>
               )}
-              {can("devis.delete") && (
-                <Button variant="ghost" size="icon" title="Supprimer" onClick={() => setASupprimer(d)}>
+              {modifiable && can("devis.delete") && (
+                <Button variant="ghost" size="icon" title={t("commercial.devis.supprimer")} aria-label={t("commercial.devis.supprimer")} onClick={() => setASupprimer(d)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               )}
@@ -159,8 +164,8 @@ function Contenu() {
         <LignesDialog
           open
           onOpenChange={(o) => !o && setDetail(null)}
-          titre={`Devis ${detail.num_devis}`}
-          description={`${detail.nom_client} · valable jusqu'au ${formatDate(detail.date_expiration)} · total ${formatAr(detail.total)} HT`}
+          titre={`${t("commercial.devis.col_devis")} ${detail.num_devis}`}
+          description={t("commercial.devis.detail_desc", { client: detail.nom_client, date: formatDate(detail.date_expiration), total: formatAr(detail.total) })}
           lignes={detail.lignes.map((l) => ({
             code_produit: l.code_produit, designation: l.designation, quantite: l.quantite,
             prix: l.prix_unitaire_devis, total: l.quantite * Number(l.prix_unitaire_devis),
@@ -171,9 +176,9 @@ function Contenu() {
       <ConfirmDialog
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
-        title="Supprimer le devis ?"
-        description={`Le devis « ${aSupprimer?.num_devis ?? ""} » sera supprimé avec ses lignes. Impossible s'il a donné lieu à une commande.`}
-        confirmLabel="Supprimer"
+        title={t("commercial.devis.confirm_titre")}
+        description={t("commercial.devis.confirm_desc", { x: aSupprimer?.num_devis ?? "" })}
+        confirmLabel={t("commercial.devis.confirm_btn")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}

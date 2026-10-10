@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/contexte";
 
 type Ton = "succes" | "attention" | "danger" | "info" | "neutre";
 
@@ -18,6 +19,9 @@ const TONS: Record<string, Ton> = {
   PLANIFIE: "neutre", EN_COURS: "attention", TERMINE: "succes", PRETE: "info",
   NON_PAYEE: "danger", PARTIELLE: "attention", PAYEE: "succes",
   EPUISE: "neutre", REGLE: "succes", CONTENTIEUX: "danger",
+  A_REMBOURSER: "attention", REMBOURSE: "succes",
+  VALIDE: "succes", PREPAREE: "attention", REMISE: "succes",
+  EMISE: "succes",
 };
 
 const LIBELLES: Record<string, string> = {
@@ -28,15 +32,19 @@ const LIBELLES: Record<string, string> = {
   PLANIFIE: "Planifié", EN_COURS: "En cours", TERMINE: "Terminé", PRETE: "Prête",
   NON_PAYEE: "Non payée", PARTIELLE: "Partiellement payée", PAYEE: "Payée",
   EPUISE: "Épuisé", REGLE: "Réglé", CONTENTIEUX: "Contentieux",
+  A_REMBOURSER: "À rembourser", REMBOURSE: "Remboursé",
+  VALIDE: "Validé", PREPAREE: "Préparée", REMISE: "Remise",
+  EMISE: "Émise",
 };
 
-function libelle(statut: string) {
-  if (LIBELLES[statut]) return LIBELLES[statut];
+function libelle(statut: string, t: (c: string) => string) {
+  if (LIBELLES[statut]) return t(`statuts.${statut}`);
   const texte = statut.replaceAll("_", " ").toLowerCase();
   return texte.charAt(0).toUpperCase() + texte.slice(1);
 }
 
 export function StatusBadge({ statut, className }: { statut: string; className?: string }) {
+  const { t } = useT();
   return (
     <span
       className={cn(
@@ -45,7 +53,7 @@ export function StatusBadge({ statut, className }: { statut: string; className?:
         className,
       )}
     >
-      {libelle(statut)}
+      {libelle(statut, t)}
     </span>
   );
 }

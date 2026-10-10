@@ -110,6 +110,11 @@ class CommandeViewSet(BaseViewSet):
                     )
                 if solv.statut_blocage:
                     raise ValidationError({'detail': "Client bloqué : commande impossible."})
+                from apps.recouvrement.services import client_en_contentieux
+                if client_en_contentieux(client):
+                    raise ValidationError(
+                        {'detail': "Client en contentieux : commande impossible."}
+                    )
                 encours = encours_client(client)
                 if total + encours > solv.plafond_encours:
                     raise ValidationError({

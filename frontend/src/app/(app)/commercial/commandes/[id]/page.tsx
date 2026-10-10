@@ -17,8 +17,10 @@ import { estSoa } from "@/lib/clients";
 import { getErrorMessage } from "@/lib/errors";
 import { formatAr, formatDate, formatNombre } from "@/lib/format";
 import { useCrud, useDetail, useList, useRecordAction } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { Commande, Facture, Preparation } from "@/types/commercial";
 import { HistoriqueButton } from "@/components/audit/history-button";
+import { ImprimerButton } from "@/components/editions/imprimer-button";
 
 export default function CommandeDetailPage() {
   return (
@@ -31,17 +33,18 @@ export default function CommandeDetailPage() {
 type Dialogue = "modifier" | "valider" | "annuler" | "supprimer" | null;
 
 function Contenu() {
+  const { t } = useT();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useAuth();
   const { data: commande, isLoading, error } = useDetail<Commande>("commercial/commandes", id);
 
-  // Documents liés : lus seulement si le rôle a le droit de les voir
-  const preparations = useList<Preparation>("commercial/preparations", { commande: id, page_size: 1 }, can("preparation.view"));
-  const factures = useList<Facture>("commercial/factures", { commande: id, page_size: 1 }, can("facture.view"));
+  // Documents liés : lus seulement si le rôle a le droit de les voir (et une fois l'id connu)
+  const preparations = useList<Preparation>("commercial/preparations", { commande: id, page_size: 1 }, can("preparation.view") && !!id);
+  const factures = useList<Facture>("commercial/factures", { commande: id, page_size: 1 }, can("facture.view") && !!id);
 
-  const valider = useRecordAction("commercial/commandes", "valider", "Commande validée.");
-  const annuler = useRecordAction("commercial/commandes", "annuler", "Commande annulée.");
+  const valider = useRecordAction("commercial/commandes", "valider", t("commercial.commande_detail.succes_validee"));
+  const annuler = useRecordAction("commercial/commandes", "annuler", t("commercial.commande_detail.succes_annulee"));
   const crud = useCrud<Commande>("commercial/commandes");
   const [dialogue, setDialogue] = useState<Dialogue>(null);
 
@@ -51,8 +54,8 @@ function Contenu() {
   if (error || !commande) {
     return (
       <div className="space-y-3 py-16 text-center">
-        <p className="text-destructive">{getErrorMessage(error, "Commande introuvable.")}</p>
-        <Link href="/commercial/commandes" className={buttonVariants({ variant: "outline" })}>Retour à la liste</Link>
+        <p className="text-destructive">{getErrorMessage(error, t("commercial.commande_detail.err_introuvable"))}</p>
+        <Link href="/commercial/commandes" className={buttonVariants({ variant: "outline" })}>{t("commercial.commande_detail.retour_liste")}</Link>
       </div>
     );
   }
@@ -85,7 +88,7 @@ function Contenu() {
     <div className="space-y-6">
       <div>
         <Link href="/commercial/commandes" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Commandes
+          <ArrowLeft className="h-4 w-4" /> {t("commercial.commande_detail.fil_commandes")}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
@@ -97,24 +100,25 @@ function Contenu() {
           </div>
           <HistoriqueButton table="commande" objet={commande.id_commande} titre={commande.num_commande} />
           <div className="flex flex-wrap gap-2">
+            <ImprimerButton chemin={`commande/${commande.id_commande}`} libelle={t("commercial.commande_detail.imprimer")} />
             {brouillon && can("commande.valider") && (
               <Button onClick={() => setDialogue("valider")}>
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Valider
+                <CheckCircle2 className="mr-2 h-4 w-4" /> {t("commercial.commande_detail.valider")}
               </Button>
             )}
             {brouillon && can("commande.update") && (
               <Button variant="outline" onClick={() => setDialogue("modifier")}>
-                <Pencil className="mr-2 h-4 w-4" /> Modifier
+                <Pencil className="mr-2 h-4 w-4" /> {t("commercial.commande_detail.modifier")}
               </Button>
             )}
             {annulable && can("commande.update") && (
               <Button variant="outline" onClick={() => setDialogue("annuler")}>
-                <Ban className="mr-2 h-4 w-4" /> Annuler
+                <Ban className="mr-2 h-4 w-4" /> {t("commercial.commande_detail.annuler")}
               </Button>
             )}
             {brouillon && can("commande.delete") && (
               <Button variant="outline" onClick={() => setDialogue("supprimer")}>
-                <Trash2 className="mr-2 h-4 w-4 text-destructive" /> Supprimer
+                <Trash2 className="mr-2 h-4 w-4 text-destructive" /> {t("commercial.commande_detail.supprimer")}
               </Button>
             )}
           </div>
@@ -123,23 +127,23 @@ function Contenu() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="text-base">Client</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("commercial.commande_detail.carte_client")}</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center gap-2">
               <Link href={`/clients/${commande.client}`} className="font-medium hover:underline">{commande.nom_client}</Link>
               <TypeBadge type={commande.type_client} />
             </div>
             {commande.num_devis && (
-              <div><p className="text-xs text-muted-foreground">Devis source</p><p className="font-medium">{commande.num_devis}</p></div>
+              <div><p className="text-xs text-muted-foreground">{t("commercial.commande_detail.lbl_devis_source")}</p><p className="font-medium">{commande.num_devis}</p></div>
             )}
             {soa && (
               <div>
-                <p className="text-xs text-muted-foreground">Engagement budgétaire</p>
+                <p className="text-xs text-muted-foreground">{t("commercial.commande_detail.lbl_engagement")}</p>
                 {commande.num_engagement_cf ? (
                   <p className="font-medium">{commande.num_engagement_cf}</p>
                 ) : (
                   <p className="text-amber-700">
-                    Aucun engagement rattaché{brouillon ? " : obligatoire pour valider (bouton « Modifier »)." : "."}
+                    {brouillon ? t("commercial.commande_detail.sans_engagement_brouillon") : `${t("commercial.commande_detail.sans_engagement")}.`}
                   </p>
                 )}
               </div>
@@ -148,41 +152,41 @@ function Contenu() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Suite du cycle</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("commercial.commande_detail.carte_suite")}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {commande.statut_commande === "VALIDEE" && (
               <p>
-                Validée : le magasinier peut créer la préparation.
+                {t("commercial.commande_detail.validee_magasin")}
                 {can("preparation.create") && (
-                  <> <Link href="/commercial/preparations" className="underline">Aller aux préparations</Link></>
+                  <> <Link href="/commercial/preparations" className="underline">{t("commercial.commande_detail.aller_preparations")}</Link></>
                 )}
               </p>
             )}
-            {preparation && <p>Préparation : <StatusBadge statut={preparation.statut_prepa} /></p>}
+            {preparation && <p>{t("commercial.commande_detail.preparation_prefixe")}<StatusBadge statut={preparation.statut_prepa} /></p>}
             {facture && (
               <p>
-                Facture : <Link href={`/commercial/factures/${facture.id_facture}`} className="font-medium hover:underline">{facture.num_facture}</Link>{" "}
+                {t("commercial.commande_detail.facture_prefixe")}<Link href={`/commercial/factures/${facture.id_facture}`} className="font-medium hover:underline">{facture.num_facture}</Link>{" "}
                 <StatusBadge statut={facture.statut_paiement} />
               </p>
             )}
-            {commande.statut_commande === "LIVREE" && !facture && <p>Livrée : en attente de facturation.</p>}
-            {brouillon && <p className="text-muted-foreground">Brouillon : modifiable tant qu'elle n'est pas validée.</p>}
-            {commande.statut_commande === "ANNULEE" && <p className="text-muted-foreground">Commande annulée.</p>}
+            {commande.statut_commande === "LIVREE" && !facture && <p>{t("commercial.commande_detail.livree_attente")}</p>}
+            {brouillon && <p className="text-muted-foreground">{t("commercial.commande_detail.brouillon_info")}</p>}
+            {commande.statut_commande === "ANNULEE" && <p className="text-muted-foreground">{t("commercial.commande_detail.annulee_info")}</p>}
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Lignes</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("commercial.commande_detail.carte_lignes")}</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produit</TableHead>
-                  <TableHead className="text-right">Quantité</TableHead>
-                  <TableHead className="text-right">Prix unitaire</TableHead>
-                  <TableHead className="text-right">Montant HT</TableHead>
+                  <TableHead>{t("commercial.commande_detail.col_produit")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.commande_detail.col_qte")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.commande_detail.col_pu")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.commande_detail.col_montant")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -200,7 +204,7 @@ function Contenu() {
                   </TableRow>
                 ))}
                 <TableRow>
-                  <TableCell colSpan={3} className="text-right font-medium">Total HT</TableCell>
+                  <TableCell colSpan={3} className="text-right font-medium">{t("commercial.commande_detail.total_ht")}</TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">{formatAr(commande.total)}</TableCell>
                 </TableRow>
               </TableBody>
@@ -214,28 +218,28 @@ function Contenu() {
       <ConfirmDialog
         open={dialogue === "valider"}
         onOpenChange={(o) => !o && setDialogue(null)}
-        title="Valider la commande ?"
+        title={t("commercial.commande_detail.dlg_valider_titre")}
         description={
           soa
-            ? `Le total (${formatAr(commande.total)}) est contrôlé par rapport à l'engagement, qui sera consommé (soldé). La commande ne sera plus modifiable.`
+            ? t("commercial.commande_detail.dlg_valider_soa", { x: formatAr(commande.total) })
             : commande.type_client === "PRIVE"
-              ? `Le client doit avoir une fiche de solvabilité non bloquée, et le total plus son encours ne doit pas dépasser son plafond. La commande ne sera plus modifiable.`
-              : "La commande ne sera plus modifiable."
+              ? t("commercial.commande_detail.dlg_valider_prive")
+              : t("commercial.commande_detail.dlg_valider_defaut")
         }
-        confirmLabel="Valider"
+        confirmLabel={t("commercial.commande_detail.dlg_valider_btn")}
         loading={valider.isPending}
         onConfirm={() => agir("valider")}
       />
       <ConfirmDialog
         open={dialogue === "annuler"}
         onOpenChange={(o) => !o && setDialogue(null)}
-        title="Annuler la commande ?"
+        title={t("commercial.commande_detail.dlg_annuler_titre")}
         description={
           soa && commande.statut_commande === "VALIDEE"
-            ? "L'engagement consommé redevient disponible et est détaché de cette commande."
-            : "La commande sera annulée. Cette action est définitive."
+            ? t("commercial.commande_detail.dlg_annuler_soa")
+            : t("commercial.commande_detail.dlg_annuler_defaut")
         }
-        confirmLabel="Annuler la commande"
+        confirmLabel={t("commercial.commande_detail.dlg_annuler_btn")}
         destructive
         loading={annuler.isPending}
         onConfirm={() => agir("annuler")}
@@ -243,9 +247,9 @@ function Contenu() {
       <ConfirmDialog
         open={dialogue === "supprimer"}
         onOpenChange={(o) => !o && setDialogue(null)}
-        title="Supprimer la commande ?"
-        description="Seule une commande en brouillon peut être supprimée. Elle disparaît définitivement."
-        confirmLabel="Supprimer"
+        title={t("commercial.commande_detail.dlg_suppr_titre")}
+        description={t("commercial.commande_detail.dlg_suppr_desc")}
+        confirmLabel={t("commercial.commande_detail.dlg_suppr_btn")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}

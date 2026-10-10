@@ -42,6 +42,7 @@ PRIVILEGES = [
     *crud('commune', 'communes'),
     *crud('fokontany', 'fokontany'),
     *crud('client', 'clients'),
+    *crud('client_simple', 'clients du comptoir (réception)'),
     *crud('organisme', 'organismes'),
     *crud('solvabilite', 'solvabilités clients'),
     *crud('type_financement', 'types de financement'),
@@ -79,6 +80,8 @@ PRIVILEGES = [
     ('reservation.delete', 'Delete : libération de réservations'),
     ('mouvement.view', 'View : mouvements de stock'),
     ('mouvement.create', 'Create : mouvements manuels et retours en stock'),
+    *crud('inventaire', 'inventaires physiques du stock'),
+    ('inventaire.valider', 'Valider : inventaires (passe les ajustements)'),
     *crud('tresorerie', 'trésorerie'),
     # Étape 8 — Trésorerie (caisses, carnets de quittances, règlements, livre de caisse)
     *crud('caisse', 'caisses'),
@@ -88,6 +91,14 @@ PRIVILEGES = [
     ('reglement.create', 'Create : règlements'),
     ('reglement.encaisser', 'Encaisser : espèces ou chèque au comptoir (avec quittance)'),
     ('reglement.virement', 'Enregistrer : virements du Trésor'),
+    ('reglement.annuler', 'Annuler : contre-passer un règlement saisi par erreur'),
+    ('facture.annuler', 'Annuler : factures non payées'),
+    ('avoir.rembourser', 'Rembourser : avoirs au client (sortie de caisse)'),
+    *crud('arrete_caisse', 'arrêtés de caisse journaliers'),
+    ('arrete_caisse.valider', 'Valider : arrêtés de caisse (fige la journée)'),
+    *crud('remise_banque', 'remises en banque'),
+    ('remise_banque.remettre', 'Exécuter : remises en banque (sortie de caisse)'),
+    ('etat.view', 'View : états financiers (journal, balance âgée, encaissements) et exports'),
     ('livre_caisse.view', 'View : livre de caisse'),
     ('livre_caisse.create', 'Create : opérations manuelles du livre de caisse'),
     *crud('recouvrement', 'recouvrements'),
@@ -131,6 +142,14 @@ PRIVILEGES = [
     ('PURGER_RESERVATIONS_EXPIREES', 'Purger les réservations expirées'),
     ('audit.view', "View : journal d'audit"),
     ('statistiques.view', 'View : tableau de bord analytique'),
+    # États financiers
+    ('etat_ventes.view', 'View : état — journal des ventes'),
+    ('etat_encaissements.view', 'View : état — encaissements'),
+    ('etat_creances.view', 'View : état — balance âgée des créances'),
+    ('etat_caisse.view', 'View : état — état de caisse'),
+    ('etat_budget.view', 'View : état — situation budgétaire'),
+    # Notifications
+    ('notification.annoncer', 'Envoyer : annonces aux utilisateurs'),
 ]
 
 # Rôles métiers (à adapter selon votre cahier des charges)
@@ -160,21 +179,26 @@ ROLE_PRIVILEGES = {
         'engagement.view',
         'commercial.view', 'produit.view', 'stock.view',
         'tresorerie.view', 'recouvrement.view', 'audit.view',
-        *view_only('caisse', 'livre_quittance', 'quittance', 'reglement', 'livre_caisse'),
+        *view_only('caisse', 'livre_quittance', 'quittance', 'reglement', 'livre_caisse',
+                    'arrete_caisse', 'remise_banque'),
+        'etat.view',
         *view_only('categorie', 'config_serie', 'lot'),
         *view_only('planification', 'devis', 'commande'),
         *view_only('preparation', 'livraison', 'facture', 'avoir'),
-        *view_only('magasin', 'emplacement', 'stock', 'reservation', 'mouvement'),
+        *view_only('magasin', 'emplacement', 'stock', 'reservation', 'mouvement', 'inventaire'),
         'VALIDER_PRIX_CATALOGUE', 'APPROUVER_LANCEMENT_SERIE',
-        'VALIDER_AVOIR', 'CONSULTER_AUDIT_TRAIL',
+        'VALIDER_AVOIR', 'CONSULTER_AUDIT_TRAIL', 'etat_ventes.view', 'etat_encaissements.view', 'etat_creances.view', 'etat_caisse.view', 'etat_budget.view',
+        'notification.annoncer',
     ],
 
     'RECEPTION': [
         'client_simple.view', 'client_simple.create', 'client_simple.update',
         *view_only('categorie', 'produit'),      # choix des produits d'une vente au comptoir
         'stock.view',                            # disponibilité avant la vente
-        'facture.view', 'facture.create',        # vente comptoir (écran F9)
-        'livraison.view',
+        # Pas de facture.view ni livraison.view : la réception crée la vente
+        # au comptoir (facture.create) puis le dossier part au caissier
+        # (encaissement) et au magasinier (bon de livraison).
+        'facture.create',                        # vente comptoir (écran F9)
     ],
     'COMMERCIAL': [
         'commercial.view', 'commercial.create', 'commercial.update',
@@ -211,6 +235,8 @@ ROLE_PRIVILEGES = {
         'preparation.delete',
         'livraison.view', 'livraison.create',
         *view_only('magasin', 'emplacement', 'stock', 'mouvement', 'reservation', 'avoir'),
+        'inventaire.view', 'inventaire.create', 'inventaire.update', 'inventaire.delete',
+        'inventaire.valider',
         'magasin.create', 'magasin.update',
         'emplacement.create', 'emplacement.update', 'emplacement.delete',
         'stock.transfer',
@@ -225,7 +251,12 @@ ROLE_PRIVILEGES = {
         'livre_quittance.view',
         'quittance.view',
         'reglement.view', 'reglement.create', 'reglement.encaisser',
+        'reglement.annuler',
         'livre_caisse.view',
+        'arrete_caisse.view', 'arrete_caisse.create', 'arrete_caisse.update',
+        'arrete_caisse.valider',
+        'remise_banque.view', 'remise_banque.create', 'remise_banque.remettre',
+        'etat.view',
         'client.view', 'commercial.view', 'recouvrement.view',
         'organisme.view', 'solvabilite.view',
         'province.view', 'region.view', 'district.view',
@@ -234,6 +265,7 @@ ROLE_PRIVILEGES = {
         'facture.view',
         'ENCAISSER_FONDS', 'REMPLIR_QUITTANCE_MATRICE',
         'OUVRIR_CAISSE', 'CONSULTER_LIVRE_CAISSE',
+        'etat_encaissements.view', 'etat_caisse.view',
     ],
     'COMPTABLE': [
         'budget.view', 'budget.create', 'budget.update',
@@ -248,7 +280,13 @@ ROLE_PRIVILEGES = {
         'livre_quittance.update', 'livre_quittance.delete',
         'quittance.view',
         'reglement.view', 'reglement.create', 'reglement.virement',
+        'reglement.annuler',
         'livre_caisse.view', 'livre_caisse.create',
+        'arrete_caisse.view', 'arrete_caisse.create', 'arrete_caisse.update',
+        'arrete_caisse.delete', 'arrete_caisse.valider',
+        'remise_banque.view', 'remise_banque.create', 'remise_banque.update',
+        'remise_banque.delete', 'remise_banque.remettre',
+        'facture.annuler', 'avoir.rembourser', 'etat.view',
         # Étape 9 : déclenche et pilote le recouvrement (cahier des charges, chapitre V)
         *view_only('recouvrement'),
         'recouvrement.create', 'recouvrement.update',
@@ -262,7 +300,8 @@ ROLE_PRIVILEGES = {
         'facture.view', 'facture.create', 'avoir.view', 'avoir.create',
         *view_only('magasin', 'emplacement', 'stock', 'reservation', 'mouvement'),
         'VALIDER_ENGAGEMENT_BUDGET', 'ENREGISTRER_VIREMENT_TRESOR',
-        'DECLENCHER_RECOUVREMENT', 'MODIFIER_PLAFOND_ENCOURS',
+        'DECLENCHER_RECOUVREMENT', 'MODIFIER_PLAFOND_ENCOURS', 
+        'etat_ventes.view', 'etat_encaissements.view', 'etat_creances.view', 'etat_caisse.view', 'etat_budget.view',
     ],
     'RECOUVREMENT': [
         'recouvrement.view', 'recouvrement.create', 'recouvrement.update',
@@ -275,8 +314,9 @@ ROLE_PRIVILEGES = {
         *view_only('categorie', 'produit'),
         *view_only('commande'),
         'facture.view', 'avoir.view',
+        'etat.view',
         'DECLENCHER_RECOUVREMENT', 'RECHERCHER_CLIENT', 'GENERER_FACTURE',
-        'engagement.view',
+        'engagement.view', 'etat_creances.view', 'etat_encaissements.view',
     ],
     # Nouveau rôle
     'PRODUCTION': [

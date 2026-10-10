@@ -9,6 +9,7 @@ export interface ProduitCatalogue {
   code_produit: string;
   designation: string;
   prix_tarif: string;
+  seuil_alerte: number;
   categorie: number;
   libelle_categorie: string;
   config: number | null;

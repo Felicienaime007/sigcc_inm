@@ -11,6 +11,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { entierPositif } from "@/lib/commercial";
 import { formatAr, formatNombre } from "@/lib/format";
 import { useApiMutation } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { Avoir, Facture } from "@/types/commercial";
 
 /** Création d'un avoir à partir d'une facture ; `deja` = quantités déjà retournées par produit. */
@@ -22,13 +23,14 @@ export function AvoirDialog({
   facture: Facture;
   deja: Record<number, number>;
 }) {
+  const { t } = useT();
   const [motif, setMotif] = useState("");
   const [quantites, setQuantites] = useState<Record<number, string>>({});
   const [erreur, setErreur] = useState<string | null>(null);
 
   const creer = useApiMutation(
     async (body: unknown) => (await api.post<Avoir>("/commercial/avoirs/", body)).data,
-    { success: "Avoir créé.", silentError: true },
+    { success: t("commercial.dialog_avoir.succes"), silentError: true },
   );
 
   // Réinitialisation légitime à l'ouverture : nouveau brouillon à chaque fois.
@@ -45,19 +47,19 @@ export function AvoirDialog({
 
   async function envoyer() {
     setErreur(null);
-    if (!motif.trim()) return setErreur("Le motif est obligatoire.");
+    if (!motif.trim()) return setErreur(t("commercial.dialog_avoir.err_motif"));
 
     const lignes: { produit: number; quantite_retournee: number }[] = [];
     for (const l of facture.lignes) {
       const saisie = (quantites[l.produit] ?? "").trim();
       if (saisie === "" || saisie === "0") continue;
       const q = entierPositif(saisie);
-      if (q === null) return setErreur(`${l.code_produit} : quantité invalide.`);
+      if (q === null) return setErreur(t("commercial.dialog_avoir.err_qte_code", { code: l.code_produit }));
       const max = maximum(l.produit, l.quantite_facturee);
-      if (q > max) return setErreur(`${l.code_produit} : maximum retournable ${max}.`);
+      if (q > max) return setErreur(t("commercial.dialog_avoir.err_max", { code: l.code_produit, max }));
       lignes.push({ produit: l.produit, quantite_retournee: q });
     }
-    if (lignes.length === 0) return setErreur("Indiquez la quantité retournée d'au moins un produit.");
+    if (lignes.length === 0) return setErreur(t("commercial.dialog_avoir.err_aucune"));
 
     try {
       await creer.mutateAsync({ facture: facture.id_facture, motif: motif.trim(), lignes });
@@ -76,18 +78,18 @@ export function AvoirDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={`Avoir sur la facture ${facture.num_facture}`}
-      description="Retour de marchandise ou correction. Montant calculé sur le prix facturé (HT)."
+      title={t("commercial.dialog_avoir.titre", { x: facture.num_facture })}
+      description={t("commercial.dialog_avoir.description")}
       onSubmit={(e) => {
         e?.preventDefault();
         void envoyer();
       }}
       submitting={creer.isPending}
       error={erreur}
-      submitLabel="Créer l'avoir"
+      submitLabel={t("commercial.dialog_avoir.valider")}
       wide
     >
-      <Field label="Motif" htmlFor="motif">
+      <Field label={t("commercial.dialog_avoir.champ_motif")} htmlFor="motif">
         <Textarea id="motif" rows={2} value={motif} onChange={(e) => setMotif(e.target.value)} />
       </Field>
 
@@ -95,10 +97,10 @@ export function AvoirDialog({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Produit</TableHead>
-              <TableHead className="text-right">Facturé</TableHead>
-              <TableHead className="text-right">Déjà en avoir</TableHead>
-              <TableHead className="w-28 text-right">À retourner</TableHead>
+              <TableHead>{t("commercial.dialog_avoir.col_produit")}</TableHead>
+              <TableHead className="text-right">{t("commercial.dialog_avoir.col_facture")}</TableHead>
+              <TableHead className="text-right">{t("commercial.dialog_avoir.col_deja")}</TableHead>
+              <TableHead className="w-28 text-right">{t("commercial.dialog_avoir.col_retourner")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -131,7 +133,7 @@ export function AvoirDialog({
         </Table>
       </div>
       <p className="text-right text-sm">
-        Montant de l&apos;avoir (HT) : <span className="font-semibold tabular-nums">{formatAr(estimation)}</span>
+        {t("commercial.dialog_avoir.montant_ht")}<span className="font-semibold tabular-nums">{formatAr(estimation)}</span>
       </p>
     </FormDialog>
   );

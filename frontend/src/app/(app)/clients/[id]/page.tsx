@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import { estSoa, peutGerer } from "@/lib/clients";
 import { getErrorMessage } from "@/lib/errors";
 import { formatAr, formatNombre } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud, useDetail } from "@/lib/resource";
 import type { Client, FicheSolvabilite } from "@/types/clients";
 
@@ -40,8 +41,9 @@ function Contenu() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useAuth();
+  const { t } = useT();
   const { data: client, isLoading, error } = useDetail<Client>("clients/clients", id);
-  const solvCrud = useCrud<FicheSolvabilite, { statut_blocage: boolean }>("clients/solvabilites");
+  const solvCrud = useCrud<FicheSolvabilite, { statut_blocage: number }>("clients/solvabilites");
 
   const [modifier, setModifier] = useState(false);
   const [solvOuvert, setSolvOuvert] = useState(false);
@@ -58,9 +60,9 @@ function Contenu() {
   if (error || !client) {
     return (
       <div className="space-y-3 py-16 text-center">
-        <p className="text-destructive">{getErrorMessage(error, "Client introuvable.")}</p>
+        <p className="text-destructive">{getErrorMessage(error, t("clients.detail.introuvable"))}</p>
         <Button variant="outline" onClick={() => router.push("/clients")}>
-          Retour à la liste
+          {t("clients.detail.retour_liste")}
         </Button>
       </div>
     );
@@ -75,7 +77,7 @@ function Contenu() {
     try {
       await solvCrud.update.mutateAsync({
         id: fiche.id_solvabilite,
-        body: { statut_blocage: !fiche.statut_blocage },
+        body: { statut_blocage: fiche.statut_blocage ? 0 : 1 },
       });
     } catch {
       /* erreur affichée en notification */
@@ -87,7 +89,7 @@ function Contenu() {
     <div className="space-y-6">
       <div>
         <Link href="/clients" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Clients
+          <ArrowLeft className="h-4 w-4" /> {t("clients.detail.fil")}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
@@ -96,7 +98,7 @@ function Contenu() {
           </div>
           {peutGerer(can, client.type_client, "update") && (
             <Button variant="outline" onClick={() => setModifier(true)}>
-              <Pencil className="mr-2 h-4 w-4" /> Modifier
+              <Pencil className="mr-2 h-4 w-4" /> {t("clients.detail.modifier")}
             </Button>
           )}
         </div>
@@ -104,32 +106,32 @@ function Contenu() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="text-base">Identité</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("clients.detail.identite")}</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            {client.code_soa && <Info label="Code SOA">{client.code_soa}</Info>}
-            <Info label={client.type_client === "SIMPLE" ? "N° de CIN" : "NIF"}>{client.cin_ou_nif}</Info>
-            <Info label="Téléphone">{client.telephone}</Info>
-            {client.nom_organisme && <Info label="Organisme de rattachement">{client.nom_organisme}</Info>}
+            {client.code_soa && <Info label={t("clients.detail.code_soa")}>{client.code_soa}</Info>}
+            <Info label={client.type_client === "SIMPLE" ? t("clients.detail.cin") : t("clients.detail.nif")}>{client.cin_ou_nif}</Info>
+            <Info label={t("clients.detail.telephone")}>{client.telephone}</Info>
+            {client.nom_organisme && <Info label={t("clients.detail.organisme")}>{client.nom_organisme}</Info>}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Localisation</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("clients.detail.localisation")}</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             {soa ? (
               <>
-                <Info label="Fokontany">{client.nom_fokontany}</Info>
-                <Info label="Commune">{client.nom_commune}</Info>
-                <Info label="District">{client.nom_district}</Info>
-                <Info label="Région">{client.nom_region}</Info>
+                <Info label={t("clients.detail.fokontany")}>{client.nom_fokontany}</Info>
+                <Info label={t("clients.detail.commune")}>{client.nom_commune}</Info>
+                <Info label={t("clients.detail.district")}>{client.nom_district}</Info>
+                <Info label={t("clients.detail.region")}>{client.nom_region}</Info>
                 {client.adresse && (
                   <div className="sm:col-span-2">
-                    <Info label="Précisions">{client.adresse}</Info>
+                    <Info label={t("clients.detail.precisions")}>{client.adresse}</Info>
                   </div>
                 )}
               </>
             ) : (
-              <Info label="Ville">{client.ville}</Info>
+              <Info label={t("clients.detail.ville")}>{client.ville}</Info>
             )}
           </CardContent>
         </Card>
@@ -137,11 +139,11 @@ function Contenu() {
         {prive && can("solvabilite.view") && (
           <Card className="lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Solvabilité</CardTitle>
+              <CardTitle className="text-base">{t("clients.detail.solvabilite")}</CardTitle>
               {fiche && can("solvabilite.update") && (
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setSolvOuvert(true)}>
-                    <Pencil className="mr-2 h-4 w-4" /> Modifier
+                    <Pencil className="mr-2 h-4 w-4" /> {t("clients.detail.modifier")}
                   </Button>
                   <Button
                     variant={fiche.statut_blocage ? "default" : "destructive"}
@@ -149,7 +151,7 @@ function Contenu() {
                     onClick={() => setConfirmBlocage(true)}
                   >
                     {fiche.statut_blocage ? <LockOpen className="mr-2 h-4 w-4" /> : <Lock className="mr-2 h-4 w-4" />}
-                    {fiche.statut_blocage ? "Débloquer" : "Bloquer"}
+                    {fiche.statut_blocage ? t("clients.detail.debloquer") : t("clients.detail.bloquer")}
                   </Button>
                 </div>
               )}
@@ -157,20 +159,27 @@ function Contenu() {
             <CardContent>
               {fiche ? (
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <Info label="Score de crédit">{formatNombre(fiche.score_credit)} / 100</Info>
-                  <Info label="Plafond d'encours">{formatAr(fiche.plafond_encours)}</Info>
-                  <Info label="Statut">
-                    {fiche.statut_blocage ? <Badge variant="destructive">Bloqué</Badge> : <Badge variant="secondary">Actif</Badge>}
+                  <Info label={t("clients.detail.score")}>{t("clients.detail.score_valeur", { v: formatNombre(fiche.score_credit) })}</Info>
+                  <Info label={t("clients.detail.plafond")}>{formatAr(fiche.plafond_encours)}</Info>
+                  <Info label={t("clients.detail.statut")}>
+                    {fiche.statut_blocage ? (
+                      <Badge
+                        variant="destructive"
+                        title={fiche.blocage_auto ? t("clients.detail.bloque_auto_hint") : t("clients.detail.bloque_manuel_hint")}
+                      >
+                        {t("clients.detail.bloque", { auto: fiche.blocage_auto ? t("clients.detail.bloque_auto") : "" })}
+                      </Badge>
+                    ) : <Badge variant="secondary">{t("clients.detail.actif")}</Badge>}
                   </Info>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-muted-foreground">
-                    Aucune fiche : ce client ne pourra pas valider de commande tant qu&apos;elle n&apos;est pas créée.
+                    {t("clients.detail.sans_fiche")}
                   </p>
                   {can("solvabilite.create") && (
                     <Button size="sm" onClick={() => setSolvOuvert(true)}>
-                      <Plus className="mr-2 h-4 w-4" /> Créer la fiche
+                      <Plus className="mr-2 h-4 w-4" /> {t("clients.detail.creer_fiche")}
                     </Button>
                   )}
                 </div>
@@ -193,13 +202,13 @@ function Contenu() {
       <ConfirmDialog
         open={confirmBlocage}
         onOpenChange={setConfirmBlocage}
-        title={fiche?.statut_blocage ? "Débloquer le client ?" : "Bloquer le client ?"}
+        title={fiche?.statut_blocage ? t("clients.detail.debloquer_titre") : t("clients.detail.bloquer_titre")}
         description={
           fiche?.statut_blocage
-            ? "Le client pourra de nouveau valider des commandes dans la limite de son plafond."
-            : "Aucune commande de ce client ne pourra être validée tant qu'il est bloqué."
+            ? t("clients.detail.debloquer_desc")
+            : t("clients.detail.bloquer_desc")
         }
-        confirmLabel={fiche?.statut_blocage ? "Débloquer" : "Bloquer"}
+        confirmLabel={fiche?.statut_blocage ? t("clients.detail.debloquer") : t("clients.detail.bloquer")}
         destructive={!fiche?.statut_blocage}
         loading={solvCrud.update.isPending}
         onConfirm={basculerBlocage}

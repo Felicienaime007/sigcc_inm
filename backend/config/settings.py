@@ -47,8 +47,22 @@ INSTALLED_APPS = [
     'apps.recouvrement',
     'apps.audit',
     'apps.statistiques',
+    'apps.editions',
+    'apps.etats',
+    'apps.notifications',
 ]
 
+NOTIFICATION_RELANCE_JOURS = 15   # délai avant relance des notifications non lues (en jours)
+# En-tête des documents imprimés (à compléter avec les informations réelles de l'INM)
+INM_ENTETE = {
+    'nom': "IMPRIMERIE NATIONALE DE MADAGASCAR",
+    'adresse': "BP : 38r , 27-29 Rue Refotaka Tsaralalana Antananarivo 101",
+    'contact': "Tél. : +261 38 97 589 07 - +261 32 11 080 22 — E-mail : imprimerienationalemadagascar@gmail.com",
+   # 'identifiants': "NIF : à compléter — STAT : à compléter",
+    'logo': BASE_DIR / 'static' / 'img' / 'logo-inm.png',  # logo repris dans l'en-tête de tous les PDF
+}
+INM_VILLE = 'Antananarivo'                      # lieu des lettres de relance
+RELANCE_DELAI_JOURS = {1: 15, 2: 8, 3: 8}       # délai accordé selon le niveau de la relanc
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',

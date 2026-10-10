@@ -4,7 +4,10 @@ export interface FicheSolvabilite {
   id_solvabilite: number;
   score_credit: string;       // décimal renvoyé en chaîne par l'API : "72.50"
   plafond_encours: string;
-  statut_blocage: boolean;
+  /** NUMBER(1) Oracle : 0 = actif, 1 = bloqué. */
+  statut_blocage: number;
+  /** 1 si le blocage vient d'un dossier contentieux (levé auto à la régularisation). */
+  blocage_auto: number;
 }
 
 export interface Client {

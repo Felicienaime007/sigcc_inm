@@ -3,24 +3,29 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Truck, Undo2, Banknote, Landmark } from "lucide-react";
+import { ArrowLeft, Loader2, Truck, Undo2, Banknote, Landmark, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { RequirePrivilege } from "@/components/can";
 import { AvoirDialog } from "@/components/commercial/avoir-dialog";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { Field } from "@/components/forms/field";
+import { FormDialog } from "@/components/forms/form-dialog";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { libelleFacturation } from "@/lib/commercial";
 import { getErrorMessage } from "@/lib/errors";
 import { formatAr, formatDate, formatDateTime, formatNombre } from "@/lib/format";
 import { useApiMutation, useDetail, useList } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { Avoir, Facture } from "@/types/commercial";
 import { ReglementDialog } from "@/components/data/tresorie/reglement-dialog";
 import { libelleMode, type Reglement } from "@/types/tresorie";
 import { HistoriqueButton } from "@/components/audit/history-button";
+import { ImprimerButton } from "@/components/editions/imprimer-button";
 export default function FactureDetailPage() {
   return (
     <RequirePrivilege privilege="facture.view">
@@ -39,6 +44,7 @@ function Montant({ label, valeur, fort }: { label: string; valeur: string; fort?
 }
 
 function Contenu() {
+  const { t } = useT();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useAuth();
@@ -49,10 +55,19 @@ function Contenu() {
   const [reglementMode, setReglementMode] = useState<"caisse" | "virement" | null>(null);
   const [avoirOuvert, setAvoirOuvert] = useState(false);
   const [livrer, setLivrer] = useState(false);
+  const [annuler, setAnnuler] = useState(false);
+  const [motif, setMotif] = useState("");
+  const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
 
   const livraison = useApiMutation(
     async () => (await api.post("/commercial/livraisons/", { facture: Number(id) })).data,
-    { success: "Bon de livraison créé, stock mis à jour." },
+    { success: t("commercial.facture_detail.succes_bl") },
+  );
+
+  const annulation = useApiMutation(
+    async (body: { motif: string }) =>
+      (await api.post(`/commercial/factures/${id}/annuler/`, body)).data,
+    { success: t("commercial.facture_detail.succes_annulee") },
   );
 
   const deja = useMemo(() => {
@@ -69,8 +84,8 @@ function Contenu() {
   if (error || !facture) {
     return (
       <div className="space-y-3 py-16 text-center">
-        <p className="text-destructive">{getErrorMessage(error, "Facture introuvable.")}</p>
-        <Button variant="outline" onClick={() => router.push("/commercial/factures")}>Retour à la liste</Button>
+        <p className="text-destructive">{getErrorMessage(error, t("commercial.facture_detail.err_introuvable"))}</p>
+        <Button variant="outline" onClick={() => router.push("/commercial/factures")}>{t("commercial.facture_detail.retour_liste")}</Button>
       </div>
     );
   }
@@ -80,6 +95,7 @@ function Contenu() {
   const peutEncaisser = facture.type_facturation === "QUITTANCE" && reste > 0 && can("reglement.encaisser");
   const peutVirement = facture.type_facturation === "VIREMENT_TRESOR" && reste > 0 && can("reglement.virement");
   const peutLivrer = comptoir && facture.statut_paiement === "PAYEE" && facture.id_livraison === null && can("livraison.create");
+  const peutAnnuler = facture.statut_paiement === "NON_PAYEE" && can("facture.annuler");
 
   async function confirmerLivraison() {
     try {
@@ -90,42 +106,63 @@ function Contenu() {
     setLivrer(false);
   }
 
+  async function confirmerAnnulation() {
+    setErreurAnnulation(null);
+    if (!motif.trim()) return setErreurAnnulation(t("commercial.facture_detail.err_motif_obligatoire"));
+    try {
+      await annulation.mutateAsync({ motif: motif.trim() });
+      setAnnuler(false);
+      setMotif("");
+    } catch (e) {
+      setErreurAnnulation(getErrorMessage(e));
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <Link href="/commercial/factures" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Factures
+          <ArrowLeft className="h-4 w-4" /> {t("commercial.facture_detail.fil_factures")}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold">{facture.num_facture}</h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <StatusBadge statut={facture.statut_paiement} />
-              <span>{libelleFacturation(facture.type_facturation)}</span>
+              <span>{libelleFacturation(facture.type_facturation, t)}</span>
               <span>· {formatDateTime(facture.date_facture)}</span>
             </div>
           </div>
           <HistoriqueButton table="facture" objet={facture.id_facture} titre={facture.num_facture} />
           <div className="flex flex-wrap gap-2">
+            <ImprimerButton chemin={`facture/${facture.id_facture}`} libelle={t("commercial.facture_detail.imprimer_facture")} />
+            {facture.id_livraison !== null && can("livraison.view") && (
+              <ImprimerButton chemin={`livraison/${facture.id_livraison}`} libelle={t("commercial.facture_detail.imprimer_bl")} />
+            )}
             {peutLivrer && (
               <Button onClick={() => setLivrer(true)}>
-                <Truck className="mr-2 h-4 w-4" /> Livrer
+                <Truck className="mr-2 h-4 w-4" /> {t("commercial.facture_detail.livrer")}
               </Button>
-              
+
             )}
                         {peutEncaisser && (
               <Button onClick={() => setReglementMode("caisse")}>
-                <Banknote className="mr-2 h-4 w-4" /> Encaisser
+                <Banknote className="mr-2 h-4 w-4" /> {t("commercial.facture_detail.encaisser")}
               </Button>
             )}
             {peutVirement && (
               <Button onClick={() => setReglementMode("virement")}>
-                <Landmark className="mr-2 h-4 w-4" /> Enregistrer le virement
+                <Landmark className="mr-2 h-4 w-4" /> {t("commercial.facture_detail.virement")}
               </Button>
             )}
             {can("avoir.create") && (
               <Button variant="outline" onClick={() => setAvoirOuvert(true)}>
-                <Undo2 className="mr-2 h-4 w-4" /> Créer un avoir
+                <Undo2 className="mr-2 h-4 w-4" /> {t("commercial.facture_detail.creer_avoir")}
+              </Button>
+            )}
+            {peutAnnuler && (
+              <Button variant="outline" className="text-destructive" onClick={() => { setMotif(""); setErreurAnnulation(null); setAnnuler(true); }}>
+                <XCircle className="mr-2 h-4 w-4" /> {t("commercial.facture_detail.annuler_facture")}
               </Button>
             )}
           </div>
@@ -134,46 +171,52 @@ function Contenu() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="text-base">Client et origine</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("commercial.facture_detail.carte_client")}</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div><p className="text-xs text-muted-foreground">Client</p><p className="font-medium">{facture.nom_client}</p></div>
+            <div><p className="text-xs text-muted-foreground">{t("commercial.facture_detail.lbl_client")}</p><p className="font-medium">{facture.nom_client}</p></div>
             <div>
-              <p className="text-xs text-muted-foreground">Origine</p>
-              <p className="font-medium">{comptoir ? "Vente au comptoir" : `Commande ${facture.num_commande}`}</p>
+              <p className="text-xs text-muted-foreground">{t("commercial.facture_detail.lbl_origine")}</p>
+              <p className="font-medium">{comptoir ? t("commercial.facture_detail.origine_comptoir") : t("commercial.facture_detail.origine_commande", { x: facture.num_commande ?? "" })}</p>
             </div>
             {facture.id_livraison !== null && (
-              <p className="text-green-700">Livrée (bon de livraison n° {facture.id_livraison})</p>
+              <p className="text-green-700">{t("commercial.facture_detail.livree_bl", { x: facture.id_livraison })}</p>
+            )}
+            {facture.statut_paiement === "ANNULEE" && (
+              <p className="text-destructive">
+                {t("commercial.facture_detail.annulee_le", { date: facture.date_annulation ? formatDate(facture.date_annulation) : "—" })}
+                {facture.motif_annulation ? t("commercial.facture_detail.annulee_motif", { x: facture.motif_annulation }) : ""}
+              </p>
             )}
             {comptoir && facture.statut_paiement !== "PAYEE" && (
-              <p className="text-amber-700">En attente d&apos;encaissement à la caisse.</p>
+              <p className="text-amber-700">{t("commercial.facture_detail.attente_caisse")}</p>
             )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Montants</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("commercial.facture_detail.carte_montants")}</CardTitle></CardHeader>
           <CardContent className="space-y-1 text-sm">
-            <Montant label="Total HT" valeur={facture.montant_ht} />
-            <Montant label="TVA" valeur={facture.tva} />
-            <Montant label="Total TTC" valeur={facture.montant_ttc} fort />
+            <Montant label={t("commercial.facture_detail.m_ht")} valeur={facture.montant_ht} />
+            <Montant label={t("commercial.facture_detail.m_tva")} valeur={facture.tva} />
+            <Montant label={t("commercial.facture_detail.m_ttc")} valeur={facture.montant_ttc} fort />
             <div className="pt-3" />
-            <Montant label="Déjà réglé" valeur={facture.total_regle} />
-            <Montant label="Reste à payer" valeur={facture.reste_a_payer} fort />
+            <Montant label={t("commercial.facture_detail.m_regle")} valeur={facture.total_regle} />
+            <Montant label={t("commercial.facture_detail.m_reste")} valeur={facture.reste_a_payer} fort />
           </CardContent>
         </Card>
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Lignes</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t("commercial.facture_detail.carte_lignes")}</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produit</TableHead>
-                  <TableHead className="text-right">Quantité</TableHead>
-                  <TableHead className="text-right">Prix unitaire</TableHead>
-                  <TableHead className="text-right">Montant HT</TableHead>
+                  <TableHead>{t("commercial.facture_detail.col_produit")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.facture_detail.col_qte")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.facture_detail.col_pu")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.facture_detail.col_montant")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -198,7 +241,7 @@ function Contenu() {
 
       {can("avoir.view") && (avoirs.data?.results.length ?? 0) > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Avoirs émis</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("commercial.facture_detail.carte_avoirs")}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {avoirs.data!.results.map((a) => (
               <div key={a.id_avoir} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
@@ -206,7 +249,10 @@ function Contenu() {
                   <p className="font-medium">{a.num_avoir} · {formatDate(a.date_avoir)}</p>
                   <p className="text-xs text-muted-foreground">{a.motif}</p>
                 </div>
-                <span className="font-medium tabular-nums">{formatAr(a.total_avoir)} HT</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium tabular-nums">{formatAr(a.total_avoir)}{t("commercial.facture_detail.suffixe_ht")}</span>
+                  <ImprimerButton icone chemin={`avoir/${a.id_avoir}`} libelle={t("commercial.facture_detail.imprimer_avoir")} />
+                </div>
               </div>
             ))}
           </CardContent>
@@ -214,19 +260,22 @@ function Contenu() {
       )}
             {can("reglement.view") && (reglements.data?.results.length ?? 0) > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Règlements</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t("commercial.facture_detail.carte_reglements")}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {reglements.data!.results.map((r) => (
               <div key={r.id_reglement} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
                 <div>
-                  <p className="font-medium">{libelleMode(r.mode_reglement)} · {formatDateTime(r.date_reglement)}</p>
+                  <p className="font-medium">{t(libelleMode(r.mode_reglement))} · {formatDateTime(r.date_reglement)}</p>
                   <p className="text-xs text-muted-foreground">
                     {r.quittance
-                      ? `Quittance ${r.quittance.numero_livre} · feuille ${r.quittance.num_feuille} · volet ${r.quittance.attribut_volet}`
+                      ? t("commercial.facture_detail.quittance_detail", { n: r.quittance.numero_livre, f: r.quittance.num_feuille, v: r.quittance.attribut_volet })
                       : r.num_virement_tresor}
                   </p>
                 </div>
-                <span className="font-medium tabular-nums">{formatAr(r.montant_regle)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium tabular-nums">{formatAr(r.montant_regle)}</span>
+                  <ImprimerButton icone chemin={`reglement/${r.id_reglement}`} libelle={t("commercial.facture_detail.imprimer_recu")} />
+                </div>
               </div>
             ))}
           </CardContent>
@@ -238,12 +287,30 @@ function Contenu() {
       <ConfirmDialog
         open={livrer}
         onOpenChange={setLivrer}
-        title="Confirmer la livraison ?"
-        description="Le bon de livraison est créé et les produits sortent du stock. Cette action ne s'annule pas."
-        confirmLabel="Livrer"
+        title={t("commercial.facture_detail.confirm_liv_titre")}
+        description={t("commercial.facture_detail.confirm_liv_desc")}
+        confirmLabel={t("commercial.facture_detail.confirm_liv_btn")}
         loading={livraison.isPending}
         onConfirm={confirmerLivraison}
       />
+      <FormDialog
+        open={annuler}
+        onOpenChange={setAnnuler}
+        title={t("commercial.facture_detail.ann_titre", { x: facture.num_facture })}
+        description={t("commercial.facture_detail.ann_desc")}
+        onSubmit={(e) => { e?.preventDefault(); void confirmerAnnulation(); }}
+        submitting={annulation.isPending}
+        error={erreurAnnulation}
+        submitLabel={t("commercial.facture_detail.ann_btn")}
+      >
+        <Field label={t("commercial.facture_detail.ann_champ")} htmlFor="motif_facture">
+          <Textarea
+            id="motif_facture" autoFocus rows={3}
+            value={motif} onChange={(e) => setMotif(e.target.value)}
+            placeholder={t("commercial.facture_detail.ann_ph")}
+          />
+        </Field>
+      </FormDialog>
             {reglementMode && (
         <ReglementDialog
           open

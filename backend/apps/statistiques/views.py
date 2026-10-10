@@ -108,7 +108,7 @@ def section_ventes(annee):
 
 
 def section_encaissements(annee):
-    reg = Reglement.objects.filter(date_reglement__year=annee)
+    reg = Reglement.objects.filter(date_reglement__year=annee, statut=Reglement.Statut.ACTIF)
     tot = reg.aggregate(t=Sum('montant_regle'), n=Count('pk'))
     return {
         'total': f(tot['t']), 'nb': tot['n'],
@@ -121,8 +121,9 @@ def section_encaissements(annee):
 
 
 def section_creances():
-    regle = (Reglement.objects.filter(facture=OuterRef('pk')).order_by()
-             .values('facture').annotate(t=Sum('montant_regle')).values('t'))
+    regle = (Reglement.objects.filter(
+        facture=OuterRef('pk'), statut=Reglement.Statut.ACTIF).order_by()
+        .values('facture').annotate(t=Sum('montant_regle')).values('t'))
     avoir = (LigneAvoir.objects.filter(avoir__facture=OuterRef('pk')).order_by()
              .values('avoir__facture').annotate(t=Sum('montant_avoir')).values('t'))
     ouvertes = Facture.objects.filter(

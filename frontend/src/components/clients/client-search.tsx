@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useList, type Params } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
+import { TypeBadge } from "@/components/clients/type-badge";
 import type { Client, TypeClient } from "@/types/clients";
 
 /** Recherche de client à la saisie (les clients sont trop nombreux pour une liste déroulante). */
@@ -21,6 +23,7 @@ export function ClientSearch({
 }) {
   const [saisie, setSaisie] = useState("");
   const [ouvert, setOuvert] = useState(false);
+  const { t } = useT();
   const recherche = useDebounce(saisie, 300);
   const { data, isFetching } = useList<Client>(
     "clients/clients",
@@ -51,7 +54,7 @@ export function ClientSearch({
         </div>
         {!disabled && (
           <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null)}>
-            <X className="mr-1 h-4 w-4" /> Changer
+            <X className="mr-1 h-4 w-4" /> {t("clients.rech.changer")}
           </Button>
         )}
       </div>
@@ -66,27 +69,30 @@ export function ClientSearch({
         onChange={(e) => setSaisie(e.target.value)}
         onFocus={() => setOuvert(true)}
         onBlur={() => setTimeout(() => setOuvert(false), 150)}
-        placeholder="Rechercher un client (nom, téléphone, CIN, ville)…"
+        placeholder={t("clients.rech.placeholder")}
         className="pl-8"
         disabled={disabled}
       />
       {ouvert && (
         <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
-          {isFetching && <p className="p-3 text-sm text-muted-foreground">Recherche…</p>}
+          {isFetching && <p className="p-3 text-sm text-muted-foreground">{t("clients.rech.recherche")}</p>}
           {!isFetching && resultats.length === 0 && (
-            <p className="p-3 text-sm text-muted-foreground">Aucun client trouvé.</p>
+            <p className="p-3 text-sm text-muted-foreground">{t("clients.rech.aucun")}</p>
           )}
           {resultats.map((c) => (
             <button
               key={c.id_client}
               type="button"
               onMouseDown={() => choisir(c)}
-              className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-muted"
+              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
             >
-              <span className="font-medium">{c.nom_client}</span>
-              <span className="text-xs text-muted-foreground">
-                {[c.ville ?? c.localisation, c.telephone].filter(Boolean).join(" · ")}
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{c.nom_client}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {[c.ville ?? c.localisation, c.telephone, c.cin_ou_nif].filter(Boolean).join(" · ") || t("clients.rech.sans_detail")}
+                </span>
               </span>
+              <TypeBadge type={c.type_client} />
             </button>
           ))}
         </div>

@@ -11,13 +11,14 @@ interface Options {
   params?: Params;        // paramètres fixes (ex. { statut: "VALIDEE" })
   enabled?: boolean;
   refetchInterval?: number | false; // réactualisation auto (ex. files d'attente magasin)
+  initialSearch?: string; // recherche initiale (ex. lien profond ?bl=BL-001)
 }
 
 /** Page + recherche + tri + filtres + requête, en un seul hook. */
 export function usePagedList<T>(path: string, opts: Options = {}) {
   const pageSize = opts.pageSize ?? 20;
   const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState("");
+  const [searchInput, setSearchInput] = useState(opts.initialSearch ?? "");
   const [ordering, setOrderingState] = useState(opts.ordering ?? "");
   const [filters, setFilters] = useState<Params>({});
   const search = useDebounce(searchInput, 300);

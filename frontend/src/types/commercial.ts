@@ -1,4 +1,4 @@
-export type StatutPaiement = "NON_PAYEE" | "PARTIELLE" | "PAYEE";
+export type StatutPaiement = "NON_PAYEE" | "PARTIELLE" | "PAYEE" | "ANNULEE";
 
 export interface Produit {
   id_produit: number;
@@ -49,6 +49,8 @@ export interface Facture {
   lignes: LigneFacture[];
   total_regle: string;
   reste_a_payer: string;
+  date_annulation: string | null;
+  motif_annulation: string | null;
 }
 
 export interface LigneLivraison {
@@ -86,6 +88,8 @@ export interface Avoir {
   num_facture: string;
   lignes: LigneAvoir[];
   total_avoir: string;
+  statut_remboursement: "A_REMBOURSER" | "REMBOURSE";
+  date_remboursement: string | null;
 }
 
 export interface LignePreparation {

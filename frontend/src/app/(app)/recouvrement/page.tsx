@@ -18,11 +18,13 @@ import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { ImprimerButton } from "@/components/editions/imprimer-button";
 import { NiveauBadge } from "@/components/recouvrement/niveau-badge";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatAr, formatDate, formatNombre } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 import { NIVEAUX, STATUTS_DOSSIER } from "@/lib/recouvrement";
 import { useApiMutation, useList } from "@/lib/resource";
 import { cn } from "@/lib/utils";
@@ -42,17 +44,18 @@ export default function RecouvrementPage() {
 
 function Contenu() {
   const [onglet, setOnglet] = useState("impayes");
+  const { t } = useT();
   return (
     <div>
       <PageHeader
-        title="Recouvrement"
-        description="Factures privées impayées à échéance, dossiers de relance par paliers et contentieux."
+        title={t("recouvrement.page.titre")}
+        description={t("recouvrement.page.description")}
       />
       <Compteurs />
       <Tabs value={onglet} onValueChange={setOnglet} className="mt-6">
         <TabsList>
-          <TabsTrigger value="impayes">Impayés échus</TabsTrigger>
-          <TabsTrigger value="dossiers">Dossiers</TabsTrigger>
+          <TabsTrigger value="impayes">{t("recouvrement.page.onglet_impayes")}</TabsTrigger>
+          <TabsTrigger value="dossiers">{t("recouvrement.page.onglet_dossiers")}</TabsTrigger>
         </TabsList>
         <TabsContent value="impayes" className="mt-6"><ImpayesTab /></TabsContent>
         <TabsContent value="dossiers" className="mt-6"><DossiersTab /></TabsContent>
@@ -74,6 +77,7 @@ function Kpi({ label, valeur, ton }: { label: string; valeur: string; ton?: stri
 }
 
 function Compteurs() {
+  const { t } = useT();
   const echus = useQuery({
     queryKey: [KEY_IMPAYES, "kpi"],
     queryFn: async () => (await api.get<Impaye[]>(`/${KEY_IMPAYES}/`)).data,
@@ -86,10 +90,10 @@ function Compteurs() {
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Kpi label="Factures échues sans dossier" valeur={n(echus.data?.length)} ton={(echus.data?.length ?? 0) > 0 ? "text-red-600" : ""} />
-      <Kpi label="Montant échu" valeur={echus.data ? formatAr(montant) : "—"} ton={montant > 0 ? "text-red-600" : ""} />
-      <Kpi label="Dossiers en cours" valeur={n(enCours.data?.count)} ton={(enCours.data?.count ?? 0) > 0 ? "text-amber-600" : ""} />
-      <Kpi label="Dossiers en contentieux" valeur={n(contentieux.data?.count)} ton={(contentieux.data?.count ?? 0) > 0 ? "text-red-600" : ""} />
+      <Kpi label={t("recouvrement.page.kpi_echues")} valeur={n(echus.data?.length)} ton={(echus.data?.length ?? 0) > 0 ? "text-red-600" : ""} />
+      <Kpi label={t("recouvrement.page.kpi_montant")} valeur={echus.data ? formatAr(montant) : "—"} ton={montant > 0 ? "text-red-600" : ""} />
+      <Kpi label={t("recouvrement.page.kpi_cours")} valeur={n(enCours.data?.count)} ton={(enCours.data?.count ?? 0) > 0 ? "text-amber-600" : ""} />
+      <Kpi label={t("recouvrement.page.kpi_contentieux")} valeur={n(contentieux.data?.count)} ton={(contentieux.data?.count ?? 0) > 0 ? "text-red-600" : ""} />
     </div>
   );
 }
@@ -102,6 +106,7 @@ function comparer(a: Impaye, b: Impaye, cle: keyof Impaye): number {
 
 function ImpayesTab() {
   const { can } = useAuth();
+  const { t } = useT();
   const router = useRouter();
   const qc = useQueryClient();
   const peutOuvrir = can("recouvrement.create");
@@ -122,7 +127,7 @@ function ImpayesTab() {
 
   const ouvrir = useApiMutation(
     async (ids: number[]) => (await api.post<Dossier>("/recouvrement/dossiers/", { factures: ids })).data,
-    { success: "Dossier de recouvrement ouvert." },
+    { success: t("recouvrement.impayes.dossier_ouvert") },
   );
 
   // Une facture qui disparaît de la liste (réglée, mise en dossier ailleurs) quitte la sélection
@@ -196,7 +201,7 @@ function ImpayesTab() {
           key: "choix", header: "", className: "w-10",
           cell: (i: Impaye) => (
             <Checkbox
-              aria-label={`Sélectionner ${i.num_facture}`}
+              aria-label={t("recouvrement.impayes.selectionner", { num: i.num_facture })}
               checked={selection.has(i.facture)}
               disabled={i.jours_retard === 0 || (clientSel !== null && i.client !== clientSel)}
               onCheckedChange={(c) => basculer(i, c === true)}
@@ -205,52 +210,52 @@ function ImpayesTab() {
         }]
       : []),
     {
-      key: "facture", header: "Facture", sortKey: "num_facture",
+      key: "facture", header: "recouvrement.impayes.col_facture", sortKey: "num_facture",
       cell: (i) =>
         can("facture.view")
           ? <Link href={`/commercial/factures/${i.facture}`} className="font-medium hover:underline">{i.num_facture}</Link>
           : <span className="font-medium">{i.num_facture}</span>,
     },
-    { key: "client", header: "Client", sortKey: "nom_client", cell: (i) => i.nom_client },
-    { key: "date", header: "Émise le", sortKey: "date_facture", cell: (i) => formatDate(i.date_facture) },
-    { key: "echeance", header: "Échéance", cell: (i) => formatDate(i.echeance) },
+    { key: "client", header: "recouvrement.impayes.col_client", sortKey: "nom_client", cell: (i) => i.nom_client },
+    { key: "date", header: "recouvrement.impayes.col_emise", sortKey: "date_facture", cell: (i) => formatDate(i.date_facture) },
+    { key: "echeance", header: "recouvrement.impayes.col_echeance", cell: (i) => formatDate(i.echeance) },
     {
-      key: "retard", header: "Retard", sortKey: "jours_retard", className: "text-right tabular-nums",
+      key: "retard", header: "recouvrement.impayes.col_retard", sortKey: "jours_retard", className: "text-right tabular-nums",
       cell: (i) =>
-        i.jours_retard === 0 ? <Badge variant="outline">Non échue</Badge>
-          : <span className="font-medium text-red-600">{i.jours_retard} j</span>,
+        i.jours_retard === 0 ? <Badge variant="outline">{t("recouvrement.impayes.non_echue")}</Badge>
+          : <span className="font-medium text-red-600">{t("recouvrement.impayes.jours", { n: i.jours_retard })}</span>,
     },
     {
-      key: "du", header: "Reste dû", sortKey: "montant_du", className: "text-right font-semibold tabular-nums",
+      key: "du", header: "recouvrement.impayes.col_du", sortKey: "montant_du", className: "text-right font-semibold tabular-nums",
       cell: (i) => formatAr(i.montant_du),
     },
-    { key: "statut", header: "Paiement", cell: (i) => <StatusBadge statut={i.statut_paiement} /> },
+    { key: "statut", header: "recouvrement.impayes.col_paiement", cell: (i) => <StatusBadge statut={i.statut_paiement} /> },
   ];
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
-        <SearchInput value={saisie} onChange={setSaisie} placeholder="Client ou n° de facture…" />
+        <SearchInput value={saisie} onChange={setSaisie} placeholder={t("recouvrement.impayes.recherche")} />
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={tous} onCheckedChange={(c) => setTous(c === true)} />
-          Inclure les factures non échues
+          {t("recouvrement.impayes.inclure_non_echues")}
         </label>
       </div>
 
       {peutOuvrir && selection.size > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 p-3 text-sm">
           <p>
-            <span className="font-medium">{selection.size} facture(s)</span> de{" "}
-            <span className="font-medium">{nomClient}</span> · total{" "}
-            <span className="font-semibold tabular-nums">{formatAr(totalSel)}</span>
+            {t("recouvrement.impayes.selection", {
+              n: selection.size, client: nomClient, total: formatAr(totalSel),
+            })}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={toutDuClient}>Toutes ses factures échues</Button>
+            <Button variant="outline" size="sm" onClick={toutDuClient}>{t("recouvrement.impayes.tout_client")}</Button>
             <Button variant="ghost" size="sm" onClick={() => setSelection(new Set())}>
-              <X className="mr-1 h-4 w-4" /> Désélectionner
+              <X className="mr-1 h-4 w-4" /> {t("recouvrement.impayes.deselectionner")}
             </Button>
             <Button size="sm" onClick={() => setConfirmer(true)}>
-              <FolderPlus className="mr-2 h-4 w-4" /> Ouvrir un dossier
+              <FolderPlus className="mr-2 h-4 w-4" /> {t("recouvrement.impayes.ouvrir_dossier")}
             </Button>
           </div>
         </div>
@@ -265,20 +270,22 @@ function ImpayesTab() {
         rowKey={(i) => i.facture}
         page={courante} pageSize={TAILLE} onPageChange={setPage}
         ordering={ordering} onOrderingChange={setOrdering}
-        emptyMessage={tous ? "Aucun impayé." : "Aucune facture échue sans dossier de recouvrement."}
+        emptyMessage={tous ? "recouvrement.impayes.vide_tous" : "recouvrement.impayes.vide"}
       />
       {peutOuvrir && (
         <p className="text-xs text-muted-foreground">
-          Cochez des factures d'un même client pour ouvrir un dossier. Les factures d'un autre client se désactivent.
+          {t("recouvrement.impayes.aide")}
         </p>
       )}
 
       <ConfirmDialog
         open={confirmer}
         onOpenChange={setConfirmer}
-        title="Ouvrir un dossier de recouvrement ?"
-        description={`${selection.size} facture(s) de ${nomClient}, pour un total de ${formatAr(totalSel)}. Le dossier démarre au niveau 1 (amiable).`}
-        confirmLabel="Ouvrir le dossier"
+        title={t("recouvrement.impayes.confirmer_titre")}
+        description={t("recouvrement.impayes.confirmer_desc", {
+          n: selection.size, client: nomClient, total: formatAr(totalSel),
+        })}
+        confirmLabel={t("recouvrement.impayes.confirmer_btn")}
         loading={ouvrir.isPending}
         onConfirm={confirmerOuverture}
       />
@@ -288,34 +295,35 @@ function ImpayesTab() {
 
 // ---------------------------------------------------------------------- Dossiers
 function DossiersTab() {
+  const { t } = useT();
   const liste = usePagedList<Dossier>("recouvrement/dossiers", { ordering: "-date_relance", refetchInterval: 30_000 });
 
   const colonnes: Column<Dossier>[] = [
     {
-      key: "num", header: "Dossier", sortKey: "num_dossier",
+      key: "num", header: "recouvrement.dossiers.col_dossier", sortKey: "num_dossier",
       cell: (d) => <Link href={`/recouvrement/${d.id_recouvrement}`} className="font-medium hover:underline">{d.num_dossier}</Link>,
     },
-    { key: "client", header: "Client", cell: (d) => d.nom_client ?? "—" },
-    { key: "factures", header: "Factures", className: "text-right tabular-nums", cell: (d) => d.lignes.length },
+    { key: "client", header: "recouvrement.dossiers.col_client", cell: (d) => d.nom_client ?? "—" },
+    { key: "factures", header: "recouvrement.dossiers.col_factures", className: "text-right tabular-nums", cell: (d) => d.lignes.length },
     {
-      key: "total", header: "Reste à recouvrer", className: "text-right tabular-nums font-semibold",
+      key: "total", header: "recouvrement.dossiers.col_total", className: "text-right tabular-nums font-semibold",
       cell: (d) => formatAr(d.total_a_recouvrer),
     },
-    { key: "niveau", header: "Niveau", sortKey: "niveau_relance", cell: (d) => <NiveauBadge niveau={d.niveau_relance} /> },
-    { key: "relance", header: "Dernière relance", sortKey: "date_relance", cell: (d) => formatDate(d.date_relance) },
-    { key: "statut", header: "Statut", sortKey: "statut_dossier", cell: (d) => <StatusBadge statut={d.statut_dossier} /> },
+    { key: "niveau", header: "recouvrement.dossiers.col_niveau", sortKey: "niveau_relance", cell: (d) => <NiveauBadge niveau={d.niveau_relance} /> },
+    { key: "relance", header: "recouvrement.dossiers.col_relance", sortKey: "date_relance", cell: (d) => formatDate(d.date_relance) },
+    { key: "statut", header: "recouvrement.dossiers.col_statut", sortKey: "statut_dossier", cell: (d) => <StatusBadge statut={d.statut_dossier} /> },
   ];
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="N° de dossier, client ou facture…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("recouvrement.dossiers.recherche")} />
         <FilterSelect
-          label="Statut" options={STATUTS_DOSSIER}
+          label={t("recouvrement.dossiers.filtre_statut")} options={STATUTS_DOSSIER.map((o) => ({ value: o.value, label: t(`recouvrement.statuts_dossier.${o.value.toLowerCase()}`) }))}
           value={String(liste.filters.statut ?? "")} onChange={(v) => liste.setFilter("statut", v)}
         />
         <FilterSelect
-          label="Niveau" className="w-52" options={NIVEAUX}
+          label={t("recouvrement.dossiers.filtre_niveau")} className="w-52" options={NIVEAUX.map((o) => ({ value: o.value, label: t(`recouvrement.niveaux.n${o.value}`) }))}
           value={String(liste.filters.niveau ?? "")} onChange={(v) => liste.setFilter("niveau", v)}
         />
         <DateRange
@@ -333,9 +341,14 @@ function DossiersTab() {
         rowKey={(d) => d.id_recouvrement}
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun dossier de recouvrement."
+        emptyMessage="recouvrement.dossiers.vide"
         actions={(d) => (
-          <Link href={`/recouvrement/${d.id_recouvrement}`} className={buttonVariants({ variant: "ghost", size: "icon" })} title="Ouvrir le dossier"><Eye className="h-4 w-4" /></Link>
+          <>
+            {d.statut_dossier !== "REGLE" && (
+              <ImprimerButton icone chemin={`relance/${d.id_recouvrement}`} libelle={t("recouvrement.dossiers.imprimer")} />
+            )}
+            <Link href={`/recouvrement/${d.id_recouvrement}`} className={buttonVariants({ variant: "ghost", size: "icon" })} title={t("recouvrement.dossiers.ouvrir")}><Eye className="h-4 w-4" /></Link>
+          </>
         )}
       />
     </div>

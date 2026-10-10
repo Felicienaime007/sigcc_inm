@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { RemoteSelect } from "@/components/data/remote-select";
 import { api } from "@/lib/api";
 import { LEVELS } from "@/lib/territoire";
+import { useT } from "@/lib/i18n/contexte";
 import { cn } from "@/lib/utils";
 
 type Sel = (number | null)[];
@@ -42,6 +43,7 @@ export function HierarchyPicker({
   disabled, className, itemClassName,
 }: Props) {
   const [sel, setSel] = useState<Sel>(() => Array(upTo + 1).fill(null));
+  const { t } = useT();
 
   // Édition : retrouve les parents d'une valeur existante
   const chain = useQuery({
@@ -84,7 +86,7 @@ export function HierarchyPicker({
             getLabel={(x) => String(x[niveau.nameKey])}
             allowEmpty={allowEmpty}
             emptyLabel={emptyLabel}
-            placeholder={`Choisir…`}
+            placeholder={t("commun.choisir")}
             disabled={disabled || (i > 0 && sel[i - 1] === null)}
           />
         </div>

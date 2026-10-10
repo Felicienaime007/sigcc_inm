@@ -54,6 +54,7 @@ class ProduitFiniSerializer(serializers.ModelSerializer):
         model = ProduitFini
         fields = [
             'id_produit', 'code_produit', 'designation', 'prix_tarif',
+            'seuil_alerte',
             'categorie', 'libelle_categorie',
             'config', 'numerote_en_serie', 'prefixe_courant', 'dernier_numero_valide',
         ]

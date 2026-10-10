@@ -42,3 +42,18 @@ export function getFieldErrors(err: unknown): Record<string, string> {
     Object.entries(data as Record<string, unknown>).map(([k, v]) => [k, aplatir(v).join(" ")]),
   );
 }
+
+/** Comme getErrorMessage, mais sait lire une erreur dont le corps est un Blob (téléchargement). */
+export async function getErrorMessageAsync(err: unknown, fallback = "Une erreur est survenue."): Promise<string> {
+  if (isAxiosError(err) && err.response?.data instanceof Blob) {
+    if (err.response.status >= 500) return "Erreur du serveur. Réessayez ou contactez l'administrateur.";
+    try {
+      const messages = aplatir(JSON.parse(await err.response.data.text()));
+      if (messages.length) return messages.join(" — ");
+    } catch {
+      /* corps non JSON */
+    }
+    return fallback;
+  }
+  return getErrorMessage(err, fallback);
+}

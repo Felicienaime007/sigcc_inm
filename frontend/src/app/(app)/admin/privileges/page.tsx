@@ -6,6 +6,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { SearchInput } from "@/components/data/search-input";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { libelleAction, libelleModule } from "@/lib/rbac";
+import { useT } from "@/lib/i18n/contexte";
 import type { Privilege } from "@/types/users";
 
 export default function PrivilegesPage() {
@@ -17,26 +18,27 @@ export default function PrivilegesPage() {
 }
 
 function Contenu() {
+  const { t } = useT();
   const liste = usePagedList<Privilege>("users/privileges", { pageSize: 50, ordering: "code_action" });
 
   const colonnes: Column<Privilege>[] = [
     {
-      key: "code", header: "Code", sortKey: "code_action",
+      key: "code", header: "admin.privileges.col_code", sortKey: "code_action",
       cell: (p) => <code className="text-xs">{p.code_action}</code>,
     },
-    { key: "module", header: "Module", cell: (p) => libelleModule(p.code_action) },
-    { key: "action", header: "Action", cell: (p) => libelleAction(p.code_action) },
-    { key: "desc", header: "Description", cell: (p) => p.description ?? "—" },
+    { key: "module", header: "admin.privileges.col_module", cell: (p) => t(libelleModule(p.code_action)) },
+    { key: "action", header: "admin.privileges.col_action", cell: (p) => t(libelleAction(p.code_action)) },
+    { key: "desc", header: "admin.privileges.col_description", cell: (p) => p.description ?? "—" },
   ];
 
   return (
     <div>
       <PageHeader
-        title="Catalogue des privilèges"
-        description="Lecture seule : les privilèges sont définis par l'application (rbac_catalog.py) et accordés aux rôles."
+        title={t("admin.privileges.titre")}
+        description={t("admin.privileges.description")}
       />
       <div className="mb-4">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="Rechercher un code ou une description…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("admin.privileges.recherche_ph")} />
       </div>
       <DataTable
         columns={colonnes}

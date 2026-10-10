@@ -1,6 +1,7 @@
 "use client";
 
 import { RemoteSelect } from "@/components/data/remote-select";
+import { useT } from "@/lib/i18n/contexte";
 import { libelleEmplacement } from "@/lib/stock";
 import type { EmplacementStock, ProduitRef } from "@/types/stock";
 
@@ -10,6 +11,7 @@ export function ProduitSelect({
   value: number | null;
   onChange: (id: number | null) => void;
 }) {
+  const { t } = useT();
   return (
     <RemoteSelect<ProduitRef>
       path="produits"
@@ -17,7 +19,7 @@ export function ProduitSelect({
       onChange={onChange}
       getValue={(p) => p.id_produit}
       getLabel={(p) => `${p.code_produit} — ${p.designation}`}
-      placeholder="Choisir le produit…"
+      placeholder={t("stock.selects.ph_produit")}
     />
   );
 }
@@ -28,6 +30,7 @@ export function EmplacementSelect({
   value: number | null;
   onChange: (id: number | null) => void;
 }) {
+  const { t } = useT();
   return (
     <RemoteSelect<EmplacementStock>
       path="stock/emplacements"
@@ -35,7 +38,7 @@ export function EmplacementSelect({
       onChange={onChange}
       getValue={(e) => e.id_emplacement}
       getLabel={libelleEmplacement}
-      placeholder="Choisir l'emplacement…"
+      placeholder={t("stock.selects.ph_emplacement")}
     />
   );
 }

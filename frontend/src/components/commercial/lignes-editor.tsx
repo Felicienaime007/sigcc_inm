@@ -10,6 +10,7 @@ import { versNombre } from "@/lib/clients";
 import { entierPositif } from "@/lib/commercial";
 import { formatAr } from "@/lib/format";
 import { useOptions } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 
 export interface ProduitLight {
   id_produit: number;
@@ -33,13 +34,17 @@ const prixNombre = (l: LigneEdit) => {
 export const totalEdition = (lignes: LigneEdit[]) =>
   lignes.reduce((s, l) => s + (entierPositif(l.quantite) ?? 0) * prixNombre(l), 0);
 
-export function verifierLignes(lignes: LigneEdit[], avecPrix: boolean): string | null {
-  if (lignes.length === 0) return "Ajoutez au moins un produit.";
+type T = (cle: string, params?: Record<string, string | number>) => string;
+
+export function verifierLignes(lignes: LigneEdit[], avecPrix: boolean, t?: T): string | null {
+  if (lignes.length === 0) return t ? t("commercial.editeur.err_aucun") : "Ajoutez au moins un produit.";
   for (const l of lignes) {
-    if (entierPositif(l.quantite) === null) return `${l.produit.code_produit} : la quantité doit être un entier supérieur à 0.`;
+    if (entierPositif(l.quantite) === null)
+      return t ? t("commercial.editeur.err_qte_code", { code: l.produit.code_produit }) : `${l.produit.code_produit} : la quantité doit être un entier supérieur à 0.`;
     if (avecPrix) {
       const p = versNombre(l.prix);
-      if (!Number.isFinite(p) || p < 0) return `${l.produit.code_produit} : prix invalide.`;
+      if (!Number.isFinite(p) || p < 0)
+        return t ? t("commercial.editeur.err_prix_code", { code: l.produit.code_produit }) : `${l.produit.code_produit} : prix invalide.`;
     }
   }
   return null;
@@ -55,24 +60,27 @@ export function versApi(lignes: LigneEdit[], champQte: string, champPrix?: strin
 }
 
 export function LignesEditor({
-  lignes, onChange, avecPrix, libelleQuantite = "Quantité",
+  lignes, onChange, avecPrix, libelleQuantite,
 }: {
   lignes: LigneEdit[];
   onChange: (lignes: LigneEdit[]) => void;
   avecPrix: boolean;
   libelleQuantite?: string;
 }) {
+  const { t } = useT();
   const { data: produits } = useOptions<ProduitLight>("produits");
   const [produitId, setProduitId] = useState("");
   const [quantite, setQuantite] = useState("1");
   const [erreur, setErreur] = useState<string | null>(null);
+  const libelleProduit = (p: ProduitLight) => `${p.code_produit} — ${p.designation} (${formatAr(p.prix_tarif)})`;
+  const lblQte = libelleQuantite ?? t("commercial.editeur.qte_defaut");
 
   function ajouter() {
     setErreur(null);
     const produit = produits?.find((p) => String(p.id_produit) === produitId);
-    if (!produit) return setErreur("Choisissez un produit.");
+    if (!produit) return setErreur(t("commercial.editeur.err_choisir_produit"));
     const q = entierPositif(quantite);
-    if (q === null) return setErreur("La quantité doit être un entier supérieur à 0.");
+    if (q === null) return setErreur(t("commercial.editeur.err_qte"));
 
     const existante = lignes.find((l) => l.produit.id_produit === produit.id_produit);
     onChange(
@@ -90,20 +98,24 @@ export function LignesEditor({
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-60 flex-1">
-          <p className="mb-1.5 text-xs text-muted-foreground">Produit</p>
-          <Select value={produitId} onValueChange={(v) => setProduitId(v ?? "")}>
-            <SelectTrigger className="w-full"><SelectValue placeholder="Choisir un produit…" /></SelectTrigger>
+          <p className="mb-1.5 text-xs text-muted-foreground">{t("commercial.editeur.lbl_produit")}</p>
+          <Select
+            value={produitId}
+            onValueChange={(v) => setProduitId(v ?? "")}
+            items={Object.fromEntries((produits ?? []).map((p) => [String(p.id_produit), libelleProduit(p)]))}
+          >
+            <SelectTrigger className="w-full"><SelectValue placeholder={t("commercial.editeur.ph_produit")} /></SelectTrigger>
             <SelectContent>
               {produits?.map((p) => (
                 <SelectItem key={p.id_produit} value={String(p.id_produit)}>
-                  {p.code_produit} — {p.designation} ({formatAr(p.prix_tarif)})
+                  {libelleProduit(p)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="w-28">
-          <p className="mb-1.5 text-xs text-muted-foreground">{libelleQuantite}</p>
+          <p className="mb-1.5 text-xs text-muted-foreground">{lblQte}</p>
           <Input
             inputMode="numeric" className="text-right" value={quantite}
             onChange={(e) => setQuantite(e.target.value)}
@@ -111,7 +123,7 @@ export function LignesEditor({
           />
         </div>
         <Button type="button" onClick={ajouter}>
-          <Plus className="mr-2 h-4 w-4" /> Ajouter
+          <Plus className="mr-2 h-4 w-4" /> {t("commercial.editeur.ajouter")}
         </Button>
       </div>
       {erreur && <p className="text-sm text-destructive">{erreur}</p>}
@@ -121,10 +133,10 @@ export function LignesEditor({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Produit</TableHead>
-                <TableHead className="w-28 text-right">{libelleQuantite}</TableHead>
-                {avecPrix && <TableHead className="w-36 text-right">Prix unitaire</TableHead>}
-                {avecPrix && <TableHead className="text-right">Montant HT</TableHead>}
+                <TableHead>{t("commercial.editeur.col_produit")}</TableHead>
+                <TableHead className="w-28 text-right">{lblQte}</TableHead>
+                {avecPrix && <TableHead className="w-36 text-right">{t("commercial.editeur.col_pu")}</TableHead>}
+                {avecPrix && <TableHead className="text-right">{t("commercial.editeur.col_montant")}</TableHead>}
                 <TableHead className="w-px" />
               </TableRow>
             </TableHeader>
@@ -157,7 +169,7 @@ export function LignesEditor({
                     </TableCell>
                   )}
                   <TableCell>
-                    <Button type="button" variant="ghost" size="icon" title="Retirer"
+                    <Button type="button" variant="ghost" size="icon" title={t("commercial.editeur.retirer")} aria-label={t("commercial.editeur.retirer")}
                       onClick={() => onChange(lignes.filter((x) => x !== l))}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
@@ -171,7 +183,7 @@ export function LignesEditor({
 
       {avecPrix && lignes.length > 0 && (
         <p className="text-right text-sm">
-          Total HT : <span className="font-semibold tabular-nums">{formatAr(totalEdition(lignes))}</span>
+          {t("commercial.editeur.total_ht")}<span className="font-semibold tabular-nums">{formatAr(totalEdition(lignes))}</span>
         </p>
       )}
     </div>

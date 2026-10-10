@@ -8,12 +8,14 @@ import { FormDialog } from "@/components/forms/form-dialog";
 import { entierPositif } from "@/lib/commercial";
 import { getErrorMessage } from "@/lib/errors";
 import { useCrud } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { Client } from "@/types/clients";
 import type { Devis } from "@/types/commercial";
 import { LignesEditor, verifierLignes, versApi, type LigneEdit } from "./lignes-editor";
 
 /** Création (devis = null) ou modification d'un devis proforma. */
 export function DevisDialog({ devis, onClose }: { devis: Devis | null; onClose: () => void }) {
+  const { t } = useT();
   const edition = devis !== null;
   const crud = useCrud<Devis, Record<string, unknown>>("commercial/devis");
 
@@ -33,10 +35,10 @@ export function DevisDialog({ devis, onClose }: { devis: Devis | null; onClose: 
 
   async function envoyer() {
     setErreur(null);
-    if (!edition && !client) return setErreur("Sélectionnez le client.");
+    if (!edition && !client) return setErreur(t("commercial.dialog_devis.err_client"));
     const jours = entierPositif(validite);
-    if (jours === null) return setErreur("La validité doit être d'au moins 1 jour.");
-    const e = verifierLignes(lignes, true);
+    if (jours === null) return setErreur(t("commercial.dialog_devis.err_validite"));
+    const e = verifierLignes(lignes, true, t);
     if (e) return setErreur(e);
 
     const body = { validite_jours: jours, lignes: versApi(lignes, "quantite", "prix_unitaire_devis") };
@@ -53,28 +55,28 @@ export function DevisDialog({ devis, onClose }: { devis: Devis | null; onClose: 
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={edition ? `Modifier le devis ${devis.num_devis}` : "Nouveau devis proforma"}
-      description="Le numéro est attribué automatiquement. Un devis converti en commande n'est plus modifiable."
+      title={edition ? t("commercial.dialog_devis.titre_modif", { x: devis.num_devis }) : t("commercial.dialog_devis.titre_nouveau")}
+      description={t("commercial.dialog_devis.description")}
       onSubmit={(e) => { e?.preventDefault(); void envoyer(); }}
       submitting={crud.create.isPending || crud.update.isPending}
       error={erreur}
       wide
     >
       <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
-        <Field label="Client">
+        <Field label={t("commercial.dialog_devis.champ_client")}>
           {edition ? (
             <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">{devis.nom_client}</div>
           ) : (
             <ClientSearch value={client} onChange={setClient} exclureTypes={["SIMPLE"]} />
           )}
         </Field>
-        <Field label="Validité (jours)" htmlFor="validite">
+        <Field label={t("commercial.dialog_devis.champ_validite")} htmlFor="validite">
           <Input id="validite" inputMode="numeric" className="text-right" value={validite}
             onChange={(e) => setValidite(e.target.value)} />
         </Field>
       </div>
 
-      <Field label="Lignes du devis" hint="Le prix est celui du catalogue ; il peut être modifié pour ce devis.">
+      <Field label={t("commercial.dialog_devis.champ_lignes")} hint={t("commercial.dialog_devis.hint_lignes")}>
         <LignesEditor lignes={lignes} onChange={setLignes} avecPrix />
       </Field>
     </FormDialog>

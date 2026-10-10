@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { NiveauTab } from "@/components/territoire/niveau-tab";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/i18n/contexte";
 import { NIVEAUX } from "@/lib/territoire";
 
 export default function TerritoirePage() {
@@ -18,6 +19,7 @@ export default function TerritoirePage() {
 
 function Contenu() {
   const { can } = useAuth();
+  const { t } = useT();
   const visibles = NIVEAUX.filter((n) => can(`${n.priv}.view`));
   const [choix, setChoix] = useState<string | null>(null);
   const actif = visibles.find((n) => n.priv === choix) ?? visibles[0];
@@ -26,8 +28,8 @@ function Contenu() {
   return (
     <div>
       <PageHeader
-        title="Découpage territorial"
-        description="Province → Région → District → Commune → Fokontany. Sert à renseigner l'adresse des clients."
+        title={t("territoire.page.titre")}
+        description={t("territoire.page.description")}
       />
 
       <Tabs value={actif.priv} onValueChange={setChoix}>

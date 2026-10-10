@@ -1,8 +1,16 @@
 import type { ReactNode } from "react";
 import { formatAr, formatCompact, formatNombre } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/contexte";
+import type { Langue } from "@/lib/i18n/types";
 
-const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+const LOCALES_MOIS: Record<Langue, string> = { fr: "fr-FR", en: "en-GB", mg: "mg-MG" };
+
+/** Mois abrégés dans la langue courante (Jan, Feb… / Jan, Fév… / …). */
+function moisCourts(langue: Langue): string[] {
+  const fmt = new Intl.DateTimeFormat(LOCALES_MOIS[langue] ?? LOCALES_MOIS.fr, { month: "short", timeZone: "Indian/Antananarivo" });
+  return Array.from({ length: 12 }, (_, i) => fmt.format(new Date(2026, i, 15)).replace(".", ""));
+}
 
 export interface SerieMensuelle {
   label: string;
@@ -12,6 +20,8 @@ export interface SerieMensuelle {
 
 /** Barres groupées par mois, en CSS pur. */
 export function BarresMensuelles({ series, hauteur = 220 }: { series: SerieMensuelle[]; hauteur?: number }) {
+  const { langue } = useT();
+  const MOIS = moisCourts(langue);
   const max = Math.max(1, ...series.flatMap((s) => s.values));
   return (
     <div>
@@ -68,14 +78,15 @@ export interface ItemBarre {
 
 /** Barres horizontales proportionnelles au plus grand élément. */
 export function BarresHorizontales({
-  items, formatValeur = formatAr, vide = "Aucune donnée.",
+  items, formatValeur = formatAr, vide = "stats.charts.vide",
 }: {
   items: ItemBarre[];
   formatValeur?: (n: number) => string;
   vide?: string;
 }) {
+  const { t } = useT();
   if (items.length === 0 || items.every((i) => i.valeur === 0)) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">{vide}</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">{t(vide)}</p>;
   }
   const max = Math.max(1, ...items.map((i) => i.valeur));
   return (
@@ -118,12 +129,13 @@ export function Kpi({
 
 /** Évolution en % par rapport à l'année précédente. */
 export function Variation({ actuel, precedent }: { actuel: number; precedent: number }) {
-  if (precedent <= 0) return <span>Pas de référence pour l'année précédente</span>;
+  const { t } = useT();
+  if (precedent <= 0) return <span>{t("stats.charts.sans_reference")}</span>;
   const pct = ((actuel - precedent) / precedent) * 100;
   const hausse = pct >= 0;
   return (
     <span className={hausse ? "text-green-700" : "text-red-600"}>
-      {hausse ? "▲" : "▼"} {formatNombre(Math.abs(Math.round(pct * 10) / 10))} % vs {` année précédente`}
+      {hausse ? "▲" : "▼"} {formatNombre(Math.abs(Math.round(pct * 10) / 10))} % vs {t("stats.charts.annee_precedente")}
     </span>
   );
 }

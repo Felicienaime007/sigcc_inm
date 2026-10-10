@@ -3,6 +3,7 @@
 import { UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAvatar } from "@/lib/avatar";
+import { useT } from "@/lib/i18n/contexte";
 
 const TAILLES = {
   sm: "h-8 w-8",
@@ -32,7 +33,8 @@ export function AvatarUtilisateur({
 }) {
   const stockee = useAvatar(photo ? null : (idUtilisateur ?? null));
   const src = photo ?? stockee;
-  const libelle = nom ? `Photo de profil de ${nom}` : "Photo de profil";
+  const { t } = useT();
+  const libelle = nom ? t("commun.avatar.photo_nom", { nom }) : t("commun.avatar.photo");
 
   if (src) {
     return (
@@ -48,8 +50,8 @@ export function AvatarUtilisateur({
   return (
     <span
       role="img"
-      aria-label={nom ? `Profil par défaut de ${nom}` : "Profil par défaut"}
-      title={nom || "Profil par défaut"}
+      aria-label={nom ? t("commun.avatar.defaut_nom", { nom }) : t("commun.avatar.defaut")}
+      title={nom || t("commun.avatar.defaut")}
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-1 ring-border",
         TAILLES[taille],

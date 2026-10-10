@@ -12,6 +12,7 @@ import { estSoa } from "@/lib/clients";
 import { getErrorMessage } from "@/lib/errors";
 import { formatAr, formatDate, formatNombre } from "@/lib/format";
 import { useCrud, useDetail, useOptions } from "@/lib/resource";
+import { useT } from "@/lib/i18n/contexte";
 import type { Client } from "@/types/clients";
 import type { Commande, Devis, EngagementLight } from "@/types/commercial";
 import { LignesEditor, totalEdition, verifierLignes, versApi, type LigneEdit } from "./lignes-editor";
@@ -31,6 +32,7 @@ export function CommandeDialog({
   onClose: () => void;
   onSaved?: (commande: Commande) => void;
 }) {
+  const { t } = useT();
   const { can } = useAuth();
   const edition = commande !== null;
   const crud = useCrud<Commande, Record<string, unknown>>("commercial/commandes");
@@ -65,7 +67,10 @@ export function CommandeDialog({
     "commercial/devis", { client: clientId }, !edition && clientId !== null && can("devis.view"),
   );
   const devisDispo = (devisOptions.data ?? []).filter((d) => !d.id_commande && !d.est_expire);
-  const devisChoisi = devisDispo.find((d) => d.id_devis === devisId);
+  // Devis source : rechargé par son id (la liste peut encore charger ou l'avoir perdu)
+  const devisSource = useDetail<Devis>("commercial/devis", !edition && devisId !== null ? devisId : null);
+  const devisChoisi = devisDispo.find((d) => d.id_devis === devisId)
+    ?? (!edition && devisId !== null ? devisSource.data ?? undefined : undefined);
 
   // Engagements visés du SOA, pas encore rattachés à une commande
   const engagementsQuery = useOptions<EngagementLight>(
@@ -91,9 +96,9 @@ export function CommandeDialog({
 
   async function envoyer() {
     setErreur(null);
-    if (!edition && clientId === null) return setErreur("Sélectionnez le client.");
+    if (!edition && clientId === null) return setErreur(t("commercial.dialog_commande.err_client"));
     if (devisId === null) {
-      const e = verifierLignes(lignes, true);
+      const e = verifierLignes(lignes, true, t);
       if (e) return setErreur(e);
     }
     const lignesApi = versApi(lignes, "quantite_commandee", "prix_unitaire_facture");
@@ -119,15 +124,15 @@ export function CommandeDialog({
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title={edition ? `Modifier la commande ${commande.num_commande}` : "Nouvelle commande"}
-      description="La commande est créée en brouillon ; elle sera contrôlée à la validation (engagement pour un SOA, solvabilité pour un client privé)."
+      title={edition ? t("commercial.dialog_commande.titre_modif", { x: commande.num_commande }) : t("commercial.dialog_commande.titre_nouveau")}
+      description={t("commercial.dialog_commande.description")}
       onSubmit={(e) => { e?.preventDefault(); void envoyer(); }}
       submitting={crud.create.isPending || crud.update.isPending}
       error={erreur}
-      submitLabel={edition ? "Enregistrer" : "Créer la commande"}
+      submitLabel={edition ? t("commercial.dialog_commande.valider_modif") : t("commercial.dialog_commande.valider_nouveau")}
       wide
     >
-      <Field label="Client">
+      <Field label={t("commercial.dialog_commande.champ_client")}>
         {edition ? (
           <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">{commande.nom_client}</div>
         ) : (
@@ -140,17 +145,17 @@ export function CommandeDialog({
       </Field>
 
       {!edition && clientId !== null && devisDispo.length > 0 && (
-        <Field label="Devis source (facultatif)" hint="Les lignes et les prix du devis sont repris tels quels.">
+        <Field label={t("commercial.dialog_commande.champ_devis")} hint={t("commercial.dialog_commande.hint_devis")}>
           <Select
             value={devisId !== null ? String(devisId) : AUCUN}
             onValueChange={(v) => setDevisId(v === AUCUN ? null : Number(v))}
           >
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={AUCUN}>— Aucun (commande directe) —</SelectItem>
+              <SelectItem value={AUCUN}>{t("commercial.dialog_commande.opt_aucun_direct")}</SelectItem>
               {devisDispo.map((d) => (
                 <SelectItem key={d.id_devis} value={String(d.id_devis)}>
-                  {d.num_devis} · {formatAr(d.total)} · valable jusqu'au {formatDate(d.date_expiration)}
+                  {t("commercial.dialog_commande.opt_devis_detail", { n: d.num_devis, m: formatAr(d.total), d: formatDate(d.date_expiration) })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -158,13 +163,13 @@ export function CommandeDialog({
         </Field>
       )}
       {edition && commande.num_devis && (
-        <p className="text-sm text-muted-foreground">Devis source : {commande.num_devis}</p>
+        <p className="text-sm text-muted-foreground">{t("commercial.dialog_commande.lbl_devis_source", { x: commande.num_devis })}</p>
       )}
 
       {soa && (
         <Field
-          label="Engagement budgétaire"
-          hint="Obligatoire pour valider la commande d'un SOA. Seuls les engagements visés, libres, de ce SOA sont proposés."
+          label={t("commercial.dialog_commande.champ_engagement")}
+          hint={t("commercial.dialog_commande.hint_engagement")}
         >
           <Select
             value={engagementId !== null ? String(engagementId) : AUCUN}
@@ -173,18 +178,18 @@ export function CommandeDialog({
           >
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={AUCUN}>— Aucun pour l'instant —</SelectItem>
+              <SelectItem value={AUCUN}>{t("commercial.dialog_commande.opt_aucun")}</SelectItem>
               {engagements.map((e) => (
                 <SelectItem key={e.id_engagement} value={String(e.id_engagement)}>
                   {e.num_engagement_cf}
-                  {e.montant_engage ? ` · ${formatAr(e.montant_engage)} · article ${e.code_article}` : ""}
+                  {e.montant_engage ? t("commercial.dialog_commande.opt_eng_detail", { m: formatAr(e.montant_engage), a: e.code_article }) : ""}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {clientId !== null && !engagementsQuery.isLoading && engagements.length === 0 && (
             <p className="mt-1 text-xs text-amber-700">
-              Aucun engagement visé et libre pour ce SOA : demandez au comptable d'en enregistrer un.
+              {t("commercial.dialog_commande.sans_engagement")}
             </p>
           )}
         </Field>
@@ -192,25 +197,25 @@ export function CommandeDialog({
 
       {clientType === "PRIVE" && client?.solvabilite && (
         <p className="rounded-md bg-muted/40 p-3 text-sm">
-          Plafond d'encours : <span className="font-medium">{formatAr(client.solvabilite.plafond_encours)}</span>
-          {client.solvabilite.statut_blocage && <span className="ml-2 font-medium text-destructive">· client bloqué</span>}
+          {t("commercial.dialog_commande.plafond")}<span className="font-medium">{formatAr(client.solvabilite.plafond_encours)}</span>
+          {client.solvabilite.statut_blocage && <span className="ml-2 font-medium text-destructive">{t("commercial.dialog_commande.client_bloque")}</span>}
         </p>
       )}
       {clientType === "PRIVE" && client && !client.solvabilite && (
-        <p className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertTriangle className="h-4 w-4" /> Ce client privé n'a pas de fiche de solvabilité : la validation sera refusée.
+        <p className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/70 p-3 text-sm text-amber-800 dark:text-amber-200">
+          <AlertTriangle className="h-4 w-4" /> {t("commercial.dialog_commande.sans_solvabilite")}
         </p>
       )}
 
-      <Field label="Lignes de la commande">
+      <Field label={t("commercial.dialog_commande.champ_lignes")}>
         {devisId !== null ? (
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produit</TableHead>
-                  <TableHead className="text-right">Quantité</TableHead>
-                  <TableHead className="text-right">Prix unitaire</TableHead>
+                  <TableHead>{t("commercial.dialog_commande.col_produit")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.dialog_commande.col_qte")}</TableHead>
+                  <TableHead className="text-right">{t("commercial.dialog_commande.col_pu")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -230,11 +235,11 @@ export function CommandeDialog({
       </Field>
 
       <div className="text-right text-sm">
-        <p>Total HT : <span className="font-semibold tabular-nums">{formatAr(total)}</span></p>
+        <p>{t("commercial.dialog_commande.total_ht")}<span className="font-semibold tabular-nums">{formatAr(total)}</span></p>
         {depasse && (
           <p className="mt-1 flex items-center justify-end gap-1 text-amber-700">
             <AlertTriangle className="h-4 w-4" />
-            Le total dépasse le montant engagé ({formatAr(engagementChoisi!.montant_engage)}) : la validation sera refusée.
+            {t("commercial.dialog_commande.depasse", { x: formatAr(engagementChoisi!.montant_engage) })}
           </p>
         )}
       </div>

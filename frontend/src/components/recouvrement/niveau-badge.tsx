@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 
 const STYLES: Record<number, string> = {
-  1: "bg-amber-100 text-amber-800",
+  1: "bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200",
   2: "bg-orange-100 text-orange-800",
-  3: "bg-red-100 text-red-800",
+  3: "bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200",
 };
 const COURTS: Record<number, string> = { 1: "Amiable", 2: "Relance ferme", 3: "Contentieux" };
 

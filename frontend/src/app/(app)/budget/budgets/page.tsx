@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth-context";
 import { anneeCourante } from "@/lib/dates";
 import { applyServerErrors } from "@/lib/form-utils";
 import { formatAr, formatNombre } from "@/lib/format";
+import { useT } from "@/lib/i18n/contexte";
 import { useCrud, useOptions } from "@/lib/resource";
 import type { Organisme } from "@/types/clients";
 import type { Budget, TypeFinancement } from "@/types/budget";
@@ -37,18 +38,19 @@ export default function BudgetsPage() {
 
 function Contenu() {
   const { can } = useAuth();
+  const { t } = useT();
   const [onglet, setOnglet] = useState("budgets");
 
   return (
     <div>
       <PageHeader
-        title="Budgets"
-        description="Budgets annuels des organismes, lignes budgétaires et types de financement."
+        title={t("budget.liste.titre")}
+        description={t("budget.liste.description")}
       />
       <Tabs value={onglet} onValueChange={setOnglet}>
         <TabsList>
-          <TabsTrigger value="budgets">Budgets</TabsTrigger>
-          {can("type_financement.view") && <TabsTrigger value="types">Types de financement</TabsTrigger>}
+          <TabsTrigger value="budgets">{t("budget.liste.onglet_budgets")}</TabsTrigger>
+          {can("type_financement.view") && <TabsTrigger value="types">{t("budget.liste.onglet_types")}</TabsTrigger>}
         </TabsList>
         <TabsContent value="budgets" className="mt-6"><BudgetsTab /></TabsContent>
         <TabsContent value="types" className="mt-6"><TypesTab /></TabsContent>
@@ -62,6 +64,7 @@ type Edition = { mode: "create" } | { mode: "edit"; item: Budget } | null;
 
 function BudgetsTab() {
   const { can } = useAuth();
+  const { t } = useT();
   const liste = usePagedList<Budget>("budget/budgets", { ordering: "-annee_budgetaire" });
   const crud = useCrud<Budget>("budget/budgets");
   const { data: organismes } = useOptions<Organisme>("clients/organismes", {}, can("organisme.view"));
@@ -81,19 +84,19 @@ function BudgetsTab() {
 
   const colonnes: Column<Budget>[] = [
     {
-      key: "annee", header: "Année", sortKey: "annee_budgetaire",
+      key: "annee", header: "budget.budgets.col_annee", sortKey: "annee_budgetaire",
       cell: (b) => (
         <Link href={`/budget/budgets/${b.id_budget}`} className="font-medium hover:underline">
           {b.annee_budgetaire}
         </Link>
       ),
     },
-    { key: "organisme", header: "Organisme", sortKey: "organisme__nom_organisme", cell: (b) => b.nom_organisme },
-    { key: "alloue", header: "Montant alloué", className: "text-right tabular-nums", cell: (b) => formatAr(b.montant_alloue) },
-    { key: "lignes", header: "Lignes", className: "text-right tabular-nums", cell: (b) => formatNombre(b.nb_lignes) },
+    { key: "organisme", header: "budget.budgets.col_organisme", sortKey: "organisme__nom_organisme", cell: (b) => b.nom_organisme },
+    { key: "alloue", header: "budget.budgets.col_alloue", className: "text-right tabular-nums", cell: (b) => formatAr(b.montant_alloue) },
+    { key: "lignes", header: "budget.budgets.col_lignes", className: "text-right tabular-nums", cell: (b) => formatNombre(b.nb_lignes) },
     {
-      key: "dispo", header: "Disponible sur les lignes", className: "text-right tabular-nums",
-      cell: (b) => formatAr(b.total_disponible ?? 0),
+      key: "dispo", header: "budget.budgets.col_dispo", className: "text-right tabular-nums",
+      cell: (b) => (b.total_disponible == null ? "—" : formatAr(b.total_disponible)),
     },
   ];
 
@@ -101,17 +104,17 @@ function BudgetsTab() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="Organisme ou code…" />
+          <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("budget.budgets.recherche")} />
           {can("organisme.view") && (
             <FilterSelect
-              label="Organisme" className="w-60"
+              label={t("budget.budgets.filtre_organisme")} className="w-60"
               options={(organismes ?? []).map((o) => ({ value: String(o.id_organisme), label: o.nom_organisme }))}
               value={String(liste.filters.organisme ?? "")}
               onChange={(v) => liste.setFilter("organisme", v)}
             />
           )}
           <FilterSelect
-            label="Année" className="w-36"
+            label={t("budget.budgets.filtre_annee")} className="w-36"
             options={[anneeCourante() + 1, anneeCourante(), anneeCourante() - 1, anneeCourante() - 2]
               .map((a) => ({ value: String(a), label: String(a) }))}
             value={String(liste.filters.annee ?? "")}
@@ -120,7 +123,7 @@ function BudgetsTab() {
         </div>
         {can("budget.create") && (
           <Button onClick={() => setEdition({ mode: "create" })}>
-            <Plus className="mr-2 h-4 w-4" /> Nouveau budget
+            <Plus className="mr-2 h-4 w-4" /> {t("budget.budgets.nouveau")}
           </Button>
         )}
       </div>
@@ -134,17 +137,17 @@ function BudgetsTab() {
         rowKey={(b) => b.id_budget}
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun budget."
+        emptyMessage="budget.budgets.vide"
         actions={(b) => (
           <>
-            <Link href={`/budget/budgets/${b.id_budget}`} className={buttonVariants({ variant: "ghost", size: "icon" })} title="Ouvrir la fiche"><Eye className="h-4 w-4" /></Link>
+            <Link href={`/budget/budgets/${b.id_budget}`} className={buttonVariants({ variant: "ghost", size: "icon" })} title={t("budget.budgets.ouvrir")}><Eye className="h-4 w-4" /></Link>
             {can("budget.update") && (
-              <Button variant="ghost" size="icon" title="Modifier" onClick={() => setEdition({ mode: "edit", item: b })}>
+              <Button variant="ghost" size="icon" title={t("budget.budgets.modifier")} aria-label={t("budget.budgets.modifier")} onClick={() => setEdition({ mode: "edit", item: b })}>
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
             {can("budget.delete") && (
-              <Button variant="ghost" size="icon" title="Supprimer" onClick={() => setASupprimer(b)}>
+              <Button variant="ghost" size="icon" title={t("budget.budgets.supprimer")} aria-label={t("budget.budgets.supprimer")} onClick={() => setASupprimer(b)}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
@@ -159,9 +162,9 @@ function BudgetsTab() {
       <ConfirmDialog
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
-        title="Supprimer le budget ?"
-        description={`Le budget ${aSupprimer?.annee_budgetaire ?? ""} de ${aSupprimer?.nom_organisme ?? ""} sera supprimé. Impossible s'il a des lignes budgétaires.`}
-        confirmLabel="Supprimer"
+        title={t("budget.budgets.suppr_titre")}
+        description={t("budget.budgets.suppr_desc", { annee: aSupprimer?.annee_budgetaire ?? "", org: aSupprimer?.nom_organisme ?? "" })}
+        confirmLabel={t("budget.budgets.supprimer_btn")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
@@ -171,14 +174,16 @@ function BudgetsTab() {
 }
 
 // ------------------------------------------------------ Types de financement
-const schemaType = z.object({
-  libelle_financement: z.string().trim().min(1, "Le libellé est obligatoire.").max(100, "100 caractères maximum."),
-});
-type TypeForm = z.infer<typeof schemaType>;
+const schemaTypeTraduction = (t: (c: string) => string) =>
+  z.object({
+    libelle_financement: z.string().trim().min(1, t("budget.types.err_libelle")).max(100, t("budget.types.err_100")),
+  });
+type TypeForm = z.infer<ReturnType<typeof schemaTypeTraduction>>;
 type EditionType = { mode: "create" } | { mode: "edit"; item: TypeFinancement } | null;
 
 function TypesTab() {
   const { can } = useAuth();
+  const { t } = useT();
   const liste = usePagedList<TypeFinancement>("budget/types-financement", { ordering: "libelle_financement" });
   const crud = useCrud<TypeFinancement, TypeForm>("budget/types-financement");
 
@@ -186,7 +191,7 @@ function TypesTab() {
   const [aSupprimer, setASupprimer] = useState<TypeFinancement | null>(null);
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
 
-  const form = useForm<TypeForm>({ resolver: zodResolver(schemaType), defaultValues: { libelle_financement: "" } });
+  const form = useForm<TypeForm>({ resolver: zodResolver(schemaTypeTraduction(t)), defaultValues: { libelle_financement: "" } });
 
   useEffect(() => {
     if (!edition) return;
@@ -217,18 +222,18 @@ function TypesTab() {
 
   const colonnes: Column<TypeFinancement>[] = [
     {
-      key: "libelle", header: "Type de financement", sortKey: "libelle_financement",
-      cell: (t) => <span className="font-medium">{t.libelle_financement}</span>,
+      key: "libelle", header: "budget.types.col_libelle", sortKey: "libelle_financement",
+      cell: (tf) => <span className="font-medium">{tf.libelle_financement}</span>,
     },
   ];
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder="Rechercher…" />
+        <SearchInput value={liste.searchInput} onChange={liste.setSearchInput} placeholder={t("budget.types.recherche")} />
         {can("type_financement.create") && (
           <Button onClick={() => setEdition({ mode: "create" })}>
-            <Plus className="mr-2 h-4 w-4" /> Nouveau type
+            <Plus className="mr-2 h-4 w-4" /> {t("budget.types.nouveau")}
           </Button>
         )}
       </div>
@@ -239,19 +244,19 @@ function TypesTab() {
         isLoading={liste.query.isLoading}
         isFetching={liste.query.isFetching}
         error={liste.query.error}
-        rowKey={(t) => t.id_type_financement}
+        rowKey={(tf) => tf.id_type_financement}
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
-        emptyMessage="Aucun type de financement."
-        actions={(t) => (
+        emptyMessage="budget.types.vide"
+        actions={(tf) => (
           <>
             {can("type_financement.update") && (
-              <Button variant="ghost" size="icon" title="Modifier" onClick={() => setEdition({ mode: "edit", item: t })}>
+              <Button variant="ghost" size="icon" title={t("budget.types.modifier")} aria-label={t("budget.types.modifier")} onClick={() => setEdition({ mode: "edit", item: tf })}>
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
             {can("type_financement.delete") && (
-              <Button variant="ghost" size="icon" title="Supprimer" onClick={() => setASupprimer(t)}>
+              <Button variant="ghost" size="icon" title={t("budget.types.supprimer")} aria-label={t("budget.types.supprimer")} onClick={() => setASupprimer(tf)}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             )}
@@ -262,13 +267,13 @@ function TypesTab() {
       <FormDialog
         open={edition !== null}
         onOpenChange={(o) => !o && setEdition(null)}
-        title={edition?.mode === "edit" ? "Modifier le type de financement" : "Nouveau type de financement"}
+        title={edition?.mode === "edit" ? t("budget.types.titre_modif") : t("budget.types.titre_nouveau")}
         onSubmit={enregistrer}
         submitting={form.formState.isSubmitting}
         error={erreurServeur}
       >
-        <Field label="Libellé" htmlFor="libelle_financement" error={form.formState.errors.libelle_financement?.message}
-          hint="Ex. Budget général (RPI), Fonds propre, Financement extérieur.">
+        <Field label={t("budget.types.libelle")} htmlFor="libelle_financement" error={form.formState.errors.libelle_financement?.message}
+          hint={t("budget.types.libelle_hint")}>
           <Input id="libelle_financement" autoFocus {...form.register("libelle_financement")} />
         </Field>
       </FormDialog>
@@ -276,9 +281,9 @@ function TypesTab() {
       <ConfirmDialog
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
-        title="Supprimer le type de financement ?"
-        description={`« ${aSupprimer?.libelle_financement ?? ""} » sera supprimé. Impossible si des lignes budgétaires l'utilisent.`}
-        confirmLabel="Supprimer"
+        title={t("budget.types.suppr_titre")}
+        description={t("budget.types.suppr_desc", { nom: aSupprimer?.libelle_financement ?? "" })}
+        confirmLabel={t("budget.types.supprimer_btn")}
         destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}

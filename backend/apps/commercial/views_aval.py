@@ -120,7 +120,10 @@ class FactureViewSet(LectureCreationViewSet):
         'commande__client', 'client', 'bon_livraison'
     ).prefetch_related('lignes__produit')
     serializer_class = FactureSerializer
-    privilege_map = {'list': 'facture.view', 'retrieve': 'facture.view', 'create': 'facture.create'}
+    privilege_map = {
+        'list': 'facture.view', 'retrieve': 'facture.view', 'create': 'facture.create',
+        'annuler': 'facture.annuler',
+    }
     search_fields = [
         'num_facture', 'commande__num_commande',
         'commande__client__nom_client', 'client__nom_client',
@@ -153,16 +156,65 @@ class FactureViewSet(LectureCreationViewSet):
             ])
         return qs
 
+    @action(detail=True, methods=['post'])
+    def annuler(self, request, pk=None):
+        """Annule une facture non payée : body {"motif": "..."}.
+
+        Refusée si un encaissement ACTIF, un avoir ou un bon de livraison existe.
+        La commande FACTUREE repasse à LIVREE.
+        """
+        from django.utils import timezone
+        from apps.tresorerie.models import Reglement
+        self.get_object()
+        motif = (request.data.get('motif') or '').strip()
+        if not motif:
+            raise ValidationError({'motif': "Le motif d'annulation est obligatoire."})
+        with transaction.atomic():
+            facture = Facture.objects.select_for_update().get(pk=pk)
+            if facture.statut_paiement == Facture.StatutPaiement.ANNULEE:
+                raise ValidationError({'detail': "Cette facture est déjà annulée."})
+            if facture.statut_paiement != Facture.StatutPaiement.NON_PAYEE:
+                raise ValidationError(
+                    {'detail': "Seule une facture non payée peut être annulée."}
+                )
+            if Reglement.objects.filter(
+                facture=facture, statut=Reglement.Statut.ACTIF
+            ).exists():
+                raise ValidationError(
+                    {'detail': "Des règlements existent : contre-passez-les d'abord."}
+                )
+            if facture.avoirs.exists():
+                raise ValidationError(
+                    {'detail': "Des avoirs existent sur cette facture : annulation refusée."}
+                )
+            if hasattr(facture, 'bon_livraison') and facture.bon_livraison is not None:
+                raise ValidationError(
+                    {'detail': "Un bon de livraison existe : annulation refusée."}
+                )
+            if facture.commande_id is not None:
+                cmd = Commande.objects.select_for_update().get(pk=facture.commande_id)
+                if cmd.statut_commande == Commande.Statut.FACTUREE:
+                    cmd.statut_commande = Commande.Statut.LIVREE
+                    cmd.save(update_fields=['statut_commande'])
+            facture.statut_paiement = Facture.StatutPaiement.ANNULEE
+            facture.motif_annulation = motif
+            facture.date_annulation = timezone.now()
+            facture.save(update_fields=['statut_paiement', 'motif_annulation', 'date_annulation'])
+        return Response(self.get_serializer(self.get_object()).data)
+
 
 class AvoirViewSet(LectureCreationViewSet):
     queryset = Avoir.objects.select_related('facture').prefetch_related('lignes__produit')
     serializer_class = AvoirSerializer
     privilege_map = {
         'list': 'avoir.view', 'retrieve': 'avoir.view', 'create': 'avoir.create',
-        'retour_stock': 'mouvement.create',
+        'retour_stock': 'mouvement.create', 'rembourser': 'avoir.rembourser',
     }
     search_fields = ['num_avoir', 'facture__num_facture', 'motif']
-    query_filters = {'facture': 'facture_id', 'annee': 'date_avoir__year'}
+    query_filters = {
+        'facture': 'facture_id', 'annee': 'date_avoir__year',
+        'statut': 'statut_remboursement',
+    }
     
     def get_queryset(self):
         return visibles(
@@ -184,3 +236,49 @@ class AvoirViewSet(LectureCreationViewSet):
         with transaction.atomic():
             stock_services.retour_avoir(avoir, emp)
         return Response({'detail': 'Retour en stock enregistré.'})
+
+    @action(detail=True, methods=['post'])
+    def rembourser(self, request, pk=None):
+        """Rembourse un avoir au client : body {"caisse": id}.
+
+        Crée une SORTIE de caisse du montant TTC de l'avoir. Une seule fois.
+        """
+        from decimal import Decimal
+        from django.conf import settings
+        from django.utils import timezone
+        from apps.tresorerie.models import Caisse, LivreCaisse
+        from apps.tresorerie.services import journee_cloturee
+        self.get_object()
+        try:
+            caisse_id = int(request.data.get('caisse'))
+        except (TypeError, ValueError):
+            caisse_id = None
+        if caisse_id is None:
+            raise ValidationError({'caisse': "Caisse obligatoire et valide."})
+        with transaction.atomic():
+            avoir = Avoir.objects.select_for_update().get(pk=pk)
+            if avoir.statut_remboursement == Avoir.StatutRemboursement.REMBOURSE:
+                raise ValidationError({'detail': "Cet avoir est déjà remboursé."})
+            taux = getattr(settings, 'TVA_TAUX', Decimal('0.20'))
+            ht = sum((l.montant_avoir for l in avoir.lignes.all()), Decimal('0'))
+            montant = (ht * (1 + taux)).quantize(Decimal('0.01'))
+            caisse = Caisse.objects.select_for_update().get(pk=caisse_id)
+            if journee_cloturee(caisse, timezone.now()):
+                raise ValidationError(
+                    {'caisse': "Journée arrêtée pour cette caisse : remboursement refusé."}
+                )
+            if montant > caisse.solde_actuel:
+                raise ValidationError(
+                    {'caisse': f"Solde insuffisant ({caisse.solde_actuel} Ar)."}
+                )
+            caisse.solde_actuel -= montant
+            caisse.save(update_fields=['solde_actuel'])
+            LivreCaisse.objects.create(
+                type_operation=LivreCaisse.Type.SORTIE, montant_op=montant,
+                caisse=caisse,
+                reference=f"REMBOURSEMENT {avoir.num_avoir}",
+            )
+            avoir.statut_remboursement = Avoir.StatutRemboursement.REMBOURSE
+            avoir.date_remboursement = timezone.now()
+            avoir.save(update_fields=['statut_remboursement', 'date_remboursement'])
+        return Response(self.get_serializer(self.get_object()).data)

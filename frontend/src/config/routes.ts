@@ -35,6 +35,8 @@ export const ROUTES_PRETES = [
   "/recouvrement",
   "/statistiques",
   "/audit",
+  "/editions",
+  "/etats",
 ];
 
 export function estPrete(href: string): boolean {

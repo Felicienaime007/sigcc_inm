@@ -35,6 +35,8 @@ class ProduitFini(models.Model):
     prix_tarif = models.DecimalField(
         max_digits=15, decimal_places=2, validators=[MinValueValidator(0)]
     )
+    # Seuil d'alerte : le stock disponible <= seuil signale un réassort à prévoir.
+    seuil_alerte = models.PositiveIntegerField(default=0)
     categorie = models.ForeignKey(
         CategorieProduit, on_delete=models.PROTECT,
         db_column='id_categorie', related_name='produits',

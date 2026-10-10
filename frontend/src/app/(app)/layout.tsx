@@ -10,6 +10,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // Espace fonctionnel protégé : sans authentification valide,
+  // redirection systématique vers /login (sans mémoriser la page demandée
+  // : aucun dernier espace restauré après un nouveau lancement).
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);

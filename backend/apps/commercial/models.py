@@ -216,6 +216,7 @@ class Facture(models.Model):
         NON_PAYEE = 'NON_PAYEE', 'Non payée'
         PARTIELLE = 'PARTIELLE', 'Partiellement payée'
         PAYEE = 'PAYEE', 'Payée'
+        ANNULEE = 'ANNULEE', 'Annulée'
 
     id_facture = models.AutoField(primary_key=True)
     num_facture = models.CharField(max_length=50, unique=True)
@@ -227,6 +228,9 @@ class Facture(models.Model):
     statut_paiement = models.CharField(
         max_length=30, choices=StatutPaiement.choices, default=StatutPaiement.NON_PAYEE
     )
+    # Annulation d'une facture non payée (aucun encaissement, aucun avoir)
+    date_annulation = models.DateTimeField(null=True, blank=True)
+    motif_annulation = models.TextField(null=True, blank=True)
     commande = models.OneToOneField(
         Commande, on_delete=models.PROTECT, null=True, blank=True,
         db_column='id_commande', related_name='facture',
@@ -330,6 +334,10 @@ class LigneLivraison(models.Model):
 
 # ------------------------------------------------------------------------ Avoir
 class Avoir(models.Model):
+    class StatutRemboursement(models.TextChoices):
+        A_REMBOURSER = 'A_REMBOURSER', 'À rembourser'
+        REMBOURSE = 'REMBOURSE', 'Remboursé'
+
     id_avoir = models.AutoField(primary_key=True)
     num_avoir = models.CharField(max_length=50, unique=True)
     date_avoir = models.DateTimeField(default=timezone.now)
@@ -338,6 +346,12 @@ class Avoir(models.Model):
         Facture, on_delete=models.PROTECT,
         db_column='id_facture', related_name='avoirs',
     )
+    # Remboursement au client : sortie de caisse traçable, une seule fois
+    statut_remboursement = models.CharField(
+        max_length=30, choices=StatutRemboursement.choices,
+        default=StatutRemboursement.A_REMBOURSER,
+    )
+    date_remboursement = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'avoir'

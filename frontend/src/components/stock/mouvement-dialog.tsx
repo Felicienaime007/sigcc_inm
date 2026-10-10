@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { entierPositif } from "@/lib/commercial";
 import { getErrorMessage } from "@/lib/errors";
+import { useT } from "@/lib/i18n/contexte";
 import { formatNombre } from "@/lib/format";
 import { useApiMutation, useList } from "@/lib/resource";
 import { TYPES_SAISIE } from "@/lib/stock";
@@ -18,6 +19,7 @@ import { EmplacementSelect, ProduitFige, ProduitSelect } from "./selects";
 /** Mouvement manuel : stock initial, ajustement en entrée ou sortie (casse, perte). */
 export function MouvementDialog({ produit, onClose }: { produit?: ProduitRef | null; onClose: () => void }) {
   const { can } = useAuth();
+  const { t } = useT();
   const [type, setType] = useState("ENTREE_INITIAL");
   const [produitId, setProduitId] = useState<number | null>(produit?.id_produit ?? null);
   const [emplacement, setEmplacement] = useState<number | null>(null);
@@ -33,21 +35,21 @@ export function MouvementDialog({ produit, onClose }: { produit?: ProduitRef | n
 
   const creer = useApiMutation(
     async (body: unknown) => (await api.post("/stock/mouvements/", body)).data,
-    { success: "Mouvement enregistré.", silentError: true },
+    { success: t("stock.dialog_mouvement.success"), silentError: true },
   );
 
   async function envoyer() {
     setErreur(null);
-    if (produitId === null) return setErreur("Choisissez le produit.");
-    if (emplacement === null) return setErreur("Choisissez l'emplacement.");
+    if (produitId === null) return setErreur(t("stock.dialog_mouvement.err_produit"));
+    if (emplacement === null) return setErreur(t("stock.dialog_mouvement.err_emplacement"));
     const q = entierPositif(quantite);
-    if (q === null) return setErreur("La quantité doit être un entier supérieur à 0.");
+    if (q === null) return setErreur(t("stock.dialog_mouvement.err_qte"));
     if (sortie && connu && q > libre) {
-      return setErreur(`Quantité supérieure au stock libre à cet emplacement (${formatNombre(libre)}).`);
+      return setErreur(t("stock.dialog_mouvement.err_qte_stock", { libre: formatNombre(libre) }));
     }
     const ref = reference.trim();
-    if (!ref) return setErreur("Le motif est obligatoire.");
-    if (ref.length > 100) return setErreur("Le motif est limité à 100 caractères.");
+    if (!ref) return setErreur(t("stock.dialog_mouvement.err_motif_obligatoire"));
+    if (ref.length > 100) return setErreur(t("stock.dialog_mouvement.err_motif_max"));
 
     try {
       await creer.mutateAsync({
@@ -63,43 +65,47 @@ export function MouvementDialog({ produit, onClose }: { produit?: ProduitRef | n
     <FormDialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title="Mouvement de stock manuel"
-      description="Les entrées de production, les retours sur avoir, les livraisons et les transferts sont enregistrés automatiquement."
+      title={t("stock.dialog_mouvement.titre")}
+      description={t("stock.dialog_mouvement.description")}
       onSubmit={(e) => { e?.preventDefault(); void envoyer(); }}
       submitting={creer.isPending}
       error={erreur}
-      submitLabel="Enregistrer le mouvement"
+      submitLabel={t("stock.dialog_mouvement.submit")}
     >
-      <Field label="Type de mouvement">
-        <Select value={type} onValueChange={(v) => setType(v ?? "")}>
+      <Field label={t("stock.dialog_mouvement.champ_type")}>
+        <Select
+          value={type}
+          onValueChange={(v) => setType(v ?? "")}
+          items={Object.fromEntries(TYPES_SAISIE.map((o) => [o.value, t(`stock.dialog_mouvement.types.${o.value}`)]))}
+        >
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {TYPES_SAISIE.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+            {TYPES_SAISIE.map((o) => <SelectItem key={o.value} value={o.value}>{t(`stock.dialog_mouvement.types.${o.value}`)}</SelectItem>)}
           </SelectContent>
         </Select>
       </Field>
 
-      <Field label="Produit">
+      <Field label={t("stock.dialog_mouvement.champ_produit")}>
         {produit ? <ProduitFige produit={produit} /> : <ProduitSelect value={produitId} onChange={setProduitId} />}
       </Field>
 
-      <Field label="Emplacement">
+      <Field label={t("stock.dialog_mouvement.champ_emplacement")}>
         <EmplacementSelect value={emplacement} onChange={setEmplacement} />
         {sortie && connu && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Stock libre à cet emplacement : <span className="font-medium text-foreground">{formatNombre(libre)}</span>
+            {t("stock.dialog_mouvement.hint_stock_libre")} <span className="font-medium text-foreground">{formatNombre(libre)}</span>
           </p>
         )}
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
-        <Field label="Quantité" htmlFor="quantite">
+        <Field label={t("stock.dialog_mouvement.champ_quantite")} htmlFor="quantite">
           <Input id="quantite" inputMode="numeric" className="text-right" value={quantite}
             onChange={(e) => setQuantite(e.target.value)} />
         </Field>
         <Field
-          label="Motif / référence" htmlFor="reference"
-          hint={sortie ? "Ex. « Casse constatée le 12/03 »." : "Ex. « Inventaire initial 2026 »."}
+          label={t("stock.dialog_mouvement.champ_motif")} htmlFor="reference"
+          hint={sortie ? t("stock.dialog_mouvement.hint_motif_sortie") : t("stock.dialog_mouvement.hint_motif_entree")}
         >
           <Input id="reference" maxLength={100} value={reference} onChange={(e) => setReference(e.target.value)} />
         </Field>
