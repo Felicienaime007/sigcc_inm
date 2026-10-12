@@ -4,6 +4,7 @@ export interface Profil {
   nom_complet: string;
   identifiant: string;
   statut_compte: string;
+  photo: string | null;
   roles: string[];
   privileges: string[];
 }

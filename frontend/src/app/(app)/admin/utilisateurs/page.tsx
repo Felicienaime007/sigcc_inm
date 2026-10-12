@@ -174,7 +174,7 @@ function Contenu() {
   const colonnes: Column<Utilisateur>[] = [
     {
       key: "profil", header: "admin.utilisateurs.col_profil",
-      cell: (u) => <AvatarUtilisateur idUtilisateur={u.id_utilisateur} nom={u.nom_complet} taille="md" />,
+      cell: (u) => <AvatarUtilisateur photo={u.photo} nom={u.nom_complet} taille="md" />,
     },
     {
       key: "nom", header: "admin.utilisateurs.col_utilisateur", sortKey: "nom_complet",

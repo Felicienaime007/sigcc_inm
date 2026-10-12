@@ -355,7 +355,7 @@ export const adminFr: Dict = {
     },
     photo: {
       titre: "Photo de profil",
-      description: "Visible dans le menu sur cet appareil (photo stockée dans le navigateur). Sans photo, c'est l'icône par défaut qui s'affiche.",
+      description: "Visible dans le menu sur tous vos appareils (photo stockée dans la base). Sans photo, c'est l'icône par défaut qui s'affiche.",
       changer: "Changer la photo",
       retirer: "Retirer",
       succes: "Photo de profil mise à jour.",
@@ -754,7 +754,7 @@ export const adminEn: Dict = {
     },
     photo: {
       titre: "Profile photo",
-      description: "Visible in the menu on this device (photo stored in the browser). Without a photo, the default icon is shown.",
+      description: "Visible in the menu on all your devices (photo stored in the database). Without a photo, the default icon is shown.",
       changer: "Change photo",
       retirer: "Remove",
       succes: "Profile photo updated.",
@@ -1153,7 +1153,7 @@ export const adminMg: Dict = {
     },
     photo: {
       titre: "Sarin'ny mombamomba",
-      description: "Hita ao amin'ny sakafo amin'ity fitaovana ity (voatahiry ao amin'ny navigateur). Raha tsy misy sary, ny kisary mahazatra no miseho.",
+      description: "Hita ao amin'ny sakafo amin'ny fitaovana rehetra (voatahiry ao amin'ny base). Raha tsy misy sary, ny kisary mahazatra no miseho.",
       changer: "Hanova ny sary",
       retirer: "Esorina",
       succes: "Nohavaozina ny sary.",

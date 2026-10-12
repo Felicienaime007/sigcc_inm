@@ -11,6 +11,7 @@ export interface Utilisateur {
   nom_complet: string;
   identifiant: string;
   statut_compte: StatutCompte;
+  photo: string | null;
   roles: RoleLight[];
   last_login: string | null;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,8 +14,9 @@ import { PageHeader } from "@/components/page-header";
 import { AvatarUtilisateur } from "@/components/users/avatar-utilisateur";
 import { Field } from "@/components/forms/field";
 import { api } from "@/lib/api";
-import { compresserImage, enregistrerAvatar, retirerAvatar, useAvatar } from "@/lib/avatar";
+import { compresserImage, lireAvatar, retirerAvatar } from "@/lib/avatar";
 import { useAuth } from "@/lib/auth-context";
+import { getErrorMessage } from "@/lib/errors";
 import { applyServerErrors } from "@/lib/form-utils";
 import { useT } from "@/lib/i18n/contexte";
 
@@ -35,13 +36,13 @@ const schemaTraduction = (t: (c: string) => string) =>
 type FormValues = { old_password: string; new_password: string; confirmation: string };
 
 export default function ProfilPage() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const { t } = useT();
   const [erreur, setErreur] = useState<string | null>(null);
-  const photo = useAvatar(user?.id_utilisateur ?? null);
   const [erreurPhoto, setErreurPhoto] = useState<string | null>(null);
   const [traitementPhoto, setTraitementPhoto] = useState(false);
   const entreeFichier = useRef<HTMLInputElement>(null);
+  const migre = useRef(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(schemaTraduction(t)),
     defaultValues: { old_password: "", new_password: "", confirmation: "" },
@@ -61,9 +62,28 @@ export default function ProfilPage() {
     }
   });
 
+  // Migration unique : une photo restée dans l'ancien stockage local
+  // (avant le stockage en base) est envoyée au serveur puis oubliée ici.
+  useEffect(() => {
+    if (!user || user.photo || migre.current) return;
+    const locale = lireAvatar(user.id_utilisateur);
+    if (!locale) return;
+    migre.current = true;
+    (async () => {
+      try {
+        await api.post(`/users/utilisateurs/${user.id_utilisateur}/photo/`, { photo: locale });
+        retirerAvatar(user.id_utilisateur);
+        await refresh();
+      } catch {
+        migre.current = false; // réessaiera à la prochaine visite
+      }
+    })();
+  }, [user, refresh]);
+
   if (!user) return null;
 
   const idUtilisateur = user.id_utilisateur;
+  const photo = user.photo ?? null;
 
   async function choisirPhoto(e: ChangeEvent<HTMLInputElement>) {
     const fichier = e.target.files?.[0];
@@ -72,19 +92,29 @@ export default function ProfilPage() {
     setTraitementPhoto(true);
     setErreurPhoto(null);
     try {
-      enregistrerAvatar(idUtilisateur, await compresserImage(fichier));
+      const dataUrl = await compresserImage(fichier);
+      await api.post(`/users/utilisateurs/${idUtilisateur}/photo/`, { photo: dataUrl });
+      await refresh();
       toast.success(t("profil.photo.succes"));
     } catch (err) {
-      setErreurPhoto(err instanceof Error ? err.message : t("profil.photo.erreur_lecture"));
+      setErreurPhoto(getErrorMessage(err, t("profil.photo.erreur_lecture")));
     } finally {
       setTraitementPhoto(false);
     }
   }
 
-  function retirerPhoto() {
-    retirerAvatar(idUtilisateur);
+  async function retirerPhoto() {
+    setTraitementPhoto(true);
     setErreurPhoto(null);
-    toast.success(t("profil.photo.supprimee"));
+    try {
+      await api.post(`/users/utilisateurs/${idUtilisateur}/photo/`, { photo: null });
+      await refresh();
+      toast.success(t("profil.photo.supprimee"));
+    } catch (e) {
+      setErreurPhoto(getErrorMessage(e));
+    } finally {
+      setTraitementPhoto(false);
+    }
   }
 
   return (
@@ -100,7 +130,7 @@ export default function ProfilPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-center gap-4">
-            <AvatarUtilisateur idUtilisateur={user.id_utilisateur} nom={user.nom_complet} taille="xl" />
+            <AvatarUtilisateur photo={user.photo} nom={user.nom_complet} taille="xl" />
             <div className="flex flex-wrap gap-2">
               <input
                 ref={entreeFichier}

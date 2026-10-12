@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 /**
- * Photo de profil stockée côté navigateur (localStorage, clé par utilisateur).
- * Le backend n'expose aucun champ photo : l'admin voit donc l'icône par défaut
- * et chaque utilisateur choisit sa photo dans son espace « Mon profil ».
+ * Photo de profil stockée en base (champ `photo` de l'utilisateur, exposé
+ * par /auth/me/ et les listes). Le navigateur ne sert plus de stockage :
+ * vider le stockage ne fait plus disparaître la photo.
+ *
+ * Les deux fonctions `lireAvatar`/`retirerAvatar` ne servent qu'à la
+ * migration unique des photos restées dans le localStorage (clé par
+ * utilisateur) vers le serveur, sur la page « Mon profil ».
  */
 const PREFIXE_CLE = "sigcc-avatar-";
-export const EVENEMENT_AVATAR = "sigcc-avatar-change";
 const TAILLE_MAX_PX = 256;
 const POIDS_MAX_OCTETS = 2 * 1024 * 1024;
 
@@ -16,6 +17,7 @@ function cle(id: number) {
   return `${PREFIXE_CLE}${id}`;
 }
 
+/** Photo restée dans l'ancien stockage local, ou null. */
 export function lireAvatar(id: number | null | undefined): string | null {
   if (id == null || typeof localStorage === "undefined") return null;
   try {
@@ -25,51 +27,18 @@ export function lireAvatar(id: number | null | undefined): string | null {
   }
 }
 
-function notifier(id: number) {
-  window.dispatchEvent(new CustomEvent(EVENEMENT_AVATAR, { detail: { id } }));
-}
-
-export function enregistrerAvatar(id: number, dataUrl: string) {
-  localStorage.setItem(cle(id), dataUrl);
-  notifier(id);
-}
-
+/** Oublie la photo de l'ancien stockage local (après migration vers le serveur). */
 export function retirerAvatar(id: number) {
-  localStorage.removeItem(cle(id));
-  notifier(id);
-}
-
-/** Photo de l'utilisateur, réactive aux changements (même onglet ou autre onglet). */
-export function useAvatar(id: number | null | undefined) {
-  // Photo nulle au premier rendu (identique au SSR : pas d'erreur
-  // d'hydratation) ; la photo stockée est lue juste après le montage.
-  const [etat, setEtat] = useState<{ id: number | null | undefined; photo: string | null }>(() => ({
-    id,
-    photo: null,
-  }));
-  if (etat.id !== id) setEtat({ id, photo: null });
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEtat({ id, photo: lireAvatar(id) });
-    const rafraichir = (e: Event) => {
-      const detail = (e as CustomEvent<{ id?: number }>).detail;
-      if (!detail || detail.id === id) setEtat((p) => ({ ...p, photo: lireAvatar(id) }));
-    };
-    window.addEventListener(EVENEMENT_AVATAR, rafraichir);
-    window.addEventListener("storage", rafraichir);
-    return () => {
-      window.removeEventListener(EVENEMENT_AVATAR, rafraichir);
-      window.removeEventListener("storage", rafraichir);
-    };
-  }, [id]);
-
-  return etat.photo;
+  try {
+    localStorage.removeItem(cle(id));
+  } catch {
+    /* stockage indisponible : sans conséquence */
+  }
 }
 
 /**
  * Redimensionne une image (≤ 256 px) et la renvoie en dataURL JPEG légère,
- * stockable dans le localStorage.
+ * prête à être envoyée au serveur.
  */
 export function compresserImage(fichier: File): Promise<string> {
   return new Promise((resolve, reject) => {

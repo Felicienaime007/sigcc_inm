@@ -162,7 +162,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {repliee ? (
             <div className="flex flex-col items-center gap-2">
               <span className="relative shrink-0" title={user?.nom_complet ?? ""}>
-                <AvatarUtilisateur idUtilisateur={user?.id_utilisateur ?? null} nom={user?.nom_complet} taille="sm" className="bg-[#2c3f7d] text-white ring-2 ring-white/30" />
+                <AvatarUtilisateur photo={user?.photo ?? null} nom={user?.nom_complet} taille="sm" className="bg-[#2c3f7d] text-white ring-2 ring-white/30" />
                 <span aria-hidden className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-green-400 ring-2 ring-[#1d2c5e]" />
               </span>
               <button
@@ -176,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
           <div className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2.5 ring-1 ring-white/15">
             <span className="relative shrink-0">
-              <AvatarUtilisateur idUtilisateur={user?.id_utilisateur ?? null} nom={user?.nom_complet} taille="sm" className="bg-[#2c3f7d] text-white ring-2 ring-white/30" />
+              <AvatarUtilisateur photo={user?.photo ?? null} nom={user?.nom_complet} taille="sm" className="bg-[#2c3f7d] text-white ring-2 ring-white/30" />
               <span aria-hidden className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-green-400 ring-2 ring-[#1d2c5e]" />
             </span>
             <span className="min-w-0 flex-1 leading-tight">
@@ -275,7 +275,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <DropdownMenu>
             <DropdownMenuTrigger className="hidden items-center gap-2 rounded-full py-1 pr-1.5 pl-1 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring sm:flex [&_svg.chevron]:size-4 [&_svg.chevron]:shrink-0 [&_svg.chevron]:text-muted-foreground">
               <span className="relative shrink-0">
-                <AvatarUtilisateur idUtilisateur={user?.id_utilisateur ?? null} nom={user?.nom_complet} taille="sm" className="ring-2 ring-primary/20" />
+                <AvatarUtilisateur photo={user?.photo ?? null} nom={user?.nom_complet} taille="sm" className="ring-2 ring-primary/20" />
                 <span aria-hidden className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
               </span>
               <span className="hidden max-w-32 truncate text-sm font-medium lg:block xl:max-w-40">{user?.nom_complet}</span>

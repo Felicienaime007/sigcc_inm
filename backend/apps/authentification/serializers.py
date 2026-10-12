@@ -10,6 +10,7 @@ class ProfilSerializer(serializers.Serializer):
     nom_complet = serializers.CharField()
     identifiant = serializers.CharField()
     statut_compte = serializers.CharField()
+    photo = serializers.CharField(read_only=True, allow_null=True)
     roles = serializers.SerializerMethodField()
     privileges = serializers.SerializerMethodField()
 

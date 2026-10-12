@@ -60,8 +60,11 @@ class UtilisateurSerializer(serializers.ModelSerializer):
         fields = [
             'id_utilisateur', 'matricule', 'nom_complet', 'identifiant',
             'statut_compte', 'password', 'roles', 'role_ids', 'last_login',
+            'photo',
         ]
-        read_only_fields = ['last_login']
+        # La photo s'écrit uniquement via l'action dédiée `photo`
+        # (l'utilisateur modifie la sienne, l'admin celle de chacun).
+        read_only_fields = ['last_login', 'photo']
 
     def validate_password(self, value):
         validate_password(value)

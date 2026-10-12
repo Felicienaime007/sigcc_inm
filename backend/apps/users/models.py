@@ -47,6 +47,9 @@ class Utilisateur(AbstractBaseUser):
     statut_compte = models.CharField(
         max_length=20, choices=Statut.choices, default=Statut.ACTIF
     )
+    # Photo de profil (data URL base64, image réduite ≤ 256 px) : stockée en
+    # base pour survivre au vidage du navigateur et suivre l'utilisateur.
+    photo = models.TextField(null=True, blank=True)
     roles = models.ManyToManyField(
         Role, through='UtilisateurRole', related_name='utilisateurs', blank=True
     )

@@ -13,6 +13,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (identifiant: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Recharge le profil depuis /auth/me/ (ex. après changement de photo). */
+  refresh: () => Promise<void>;
   /** Un privilège (string) ou une liste (tableau = AU MOINS UN des privilèges). ADMIN a tout. */
   can: (requis?: string | string[]) => boolean;
   hasRole: (role: string) => boolean;
@@ -104,9 +106,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasRole = useCallback((role: string) => !!user?.roles.includes(role), [user]);
 
+  const refresh = useCallback(async () => {
+    if (!tokenStore.getAccess() && !tokenStore.getRefresh()) return;
+    const res = await api.get<Profil>("/auth/me/");
+    setUser(res.data);
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, login, logout, can, hasRole }),
-    [user, loading, login, logout, can, hasRole],
+    () => ({ user, loading, login, logout, can, hasRole, refresh }),
+    [user, loading, login, logout, can, hasRole, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

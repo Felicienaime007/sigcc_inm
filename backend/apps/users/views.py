@@ -1,7 +1,9 @@
 from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.authentification.mixins import ParamFilterMixin
@@ -57,6 +59,13 @@ class UtilisateurViewSet(BaseViewSet):
     ordering_fields = ['nom_complet', 'identifiant', 'matricule', 'statut_compte', 'last_login']
     query_filters = {'statut': 'statut_compte', 'role': 'roles'}
 
+    def get_permissions(self):
+        # La photo concerne aussi les rôles sans privilège `utilisateur.*` :
+        # chacun modifie la sienne, l'admin celle de chacun (contrôle ci-dessous).
+        if getattr(self, 'action', None) == 'photo':
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     def update(self, request, *args, **kwargs):
         cible = self.get_object()
         if cible.pk == request.user.pk:
@@ -84,6 +93,34 @@ class UtilisateurViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='photo')
+    def photo(self, request, pk=None):
+        """Définit ou retire la photo de profil (data URL d'image).
+
+        Body {"photo": "data:image/jpeg;base64,..."} (ou null/"" pour retirer).
+        Chacun modifie sa propre photo ; la photo d'autrui exige
+        le privilège `utilisateur.update`.
+        """
+        from rest_framework.exceptions import ValidationError
+        cible = self.get_object()
+        if cible.pk != request.user.pk and not request.user.has_privilege('utilisateur.update'):
+            raise PermissionDenied("Vous ne pouvez modifier que votre propre photo.")
+        data_url = request.data.get('photo')
+        if data_url in (None, ''):
+            cible.photo = None
+        else:
+            if not isinstance(data_url, str) or not data_url.startswith('data:image/'):
+                raise ValidationError(
+                    {'photo': "Format attendu : data URL d'image (data:image/...)."}
+                )
+            if len(data_url) > 1_500_000:
+                raise ValidationError(
+                    {'photo': "Image trop lourde (1,5 Mo de données maximum)."}
+                )
+            cible.photo = data_url
+        cible.save(update_fields=['photo'])
+        return Response(self.get_serializer(cible).data)
 
     @action(detail=True, methods=['post'], url_path='set-password')
     def set_password(self, request, pk=None):
