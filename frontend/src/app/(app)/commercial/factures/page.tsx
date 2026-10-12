@@ -176,7 +176,7 @@ function Contenu() {
         <Field label={t("commercial.factures.champ_commande")}>
           <RemoteSelect<CommandeLight>
             path="commercial/commandes"
-            params={{ statut: "LIVREE" }}
+            params={{ statuts: "VALIDEE,EN_PREPARATION,LIVREE" }}
             value={commande}
             onChange={setCommande}
             getValue={(c) => c.id_commande}

@@ -170,6 +170,14 @@ function Contenu() {
                 <StatusBadge statut={facture.statut_paiement} />
               </p>
             )}
+            {commande.type_client === "PRIVE" && !facture && (commande.statut_commande === "VALIDEE" || commande.statut_commande === "EN_PREPARATION") && (
+              <p>
+                {t("commercial.commande_detail.prive_a_facturer")}
+                {can("facture.create") && (
+                  <> <Link href="/commercial/factures" className="underline">{t("commercial.commande_detail.aller_factures")}</Link></>
+                )}
+              </p>
+            )}
             {commande.statut_commande === "LIVREE" && !facture && <p>{t("commercial.commande_detail.livree_attente")}</p>}
             {brouillon && <p className="text-muted-foreground">{t("commercial.commande_detail.brouillon_info")}</p>}
             {commande.statut_commande === "ANNULEE" && <p className="text-muted-foreground">{t("commercial.commande_detail.annulee_info")}</p>}
