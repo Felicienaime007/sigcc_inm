@@ -63,6 +63,17 @@ class CommandeViewSet(BaseViewSet):
         'annee': 'date_commande__year',
     }
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # ?statuts=VALIDEE,FACTUREE : commandes dans l'un des statuts listés
+        # (file de facturation / préparation du privé).
+        statuts = self.request.query_params.get('statuts')
+        if statuts:
+            qs = qs.filter(statut_commande__in=[
+                s.strip() for s in statuts.split(',') if s.strip()
+            ])
+        return qs
+
     def destroy(self, request, *args, **kwargs):
         if self.get_object().statut_commande != Commande.Statut.BROUILLON:
             return Response(

@@ -161,7 +161,8 @@ class FactureViewSet(LectureCreationViewSet):
         """Annule une facture non payée : body {"motif": "..."}.
 
         Refusée si un encaissement ACTIF, un avoir ou un bon de livraison existe.
-        La commande FACTUREE repasse à LIVREE.
+        La commande FACTUREE repasse à son statut pré-facture (VALIDEE,
+        EN_PREPARATION ou LIVREE — le privé étant facturé avant livraison).
         """
         from django.utils import timezone
         from apps.tresorerie.models import Reglement
@@ -194,7 +195,14 @@ class FactureViewSet(LectureCreationViewSet):
             if facture.commande_id is not None:
                 cmd = Commande.objects.select_for_update().get(pk=facture.commande_id)
                 if cmd.statut_commande == Commande.Statut.FACTUREE:
-                    cmd.statut_commande = Commande.Statut.LIVREE
+                    preparation = getattr(cmd, 'preparation', None)
+                    if (preparation is not None
+                            and getattr(preparation, 'bon_livraison', None) is not None):
+                        cmd.statut_commande = Commande.Statut.LIVREE
+                    elif preparation is not None:
+                        cmd.statut_commande = Commande.Statut.EN_PREPARATION
+                    else:
+                        cmd.statut_commande = Commande.Statut.VALIDEE
                     cmd.save(update_fields=['statut_commande'])
             facture.statut_paiement = Facture.StatutPaiement.ANNULEE
             facture.motif_annulation = motif

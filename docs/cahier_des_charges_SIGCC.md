@@ -113,8 +113,8 @@ Destiné aux sociétés privées, ONG et clients professionnels.
 
 1. Émission d'un **Devis Proforma**.
 2. Lors de la validation de la **Commande**, le système interroge automatiquement l'entité **Solvabilité Client** (vérification du plafond d'en-cours maximal autorisé et absence de blocage).
-3. L'INM émet la **Facture** (souvent soumise à acompte).
-4. Dès réception du règlement (espèces, chèque ou virement commercial), le système valide le **Bon de Livraison** et autorise la sortie des marchandises du dépôt.
+3. L'INM émet la **Facture** dès la commande `VALIDEE` (ou `EN_PREPARATION`), en reprenant les quantités commandées et les prix de la commande — y compris en cas d'acompte, le solde restant exigible.
+4. La commande facturée (`FACTUREE`) peut alors être préparée puis livrée : le *Gestionnaire de Stock* édite le **Bon de Livraison** (refusé tant que la commande privée n'est pas facturée) et autorise la sortie des marchandises du dépôt. Le règlement (espèces, chèque ou virement commercial) solde la facture via la caisse.
 
 ---
 
@@ -140,6 +140,7 @@ Le système orchestre l'intégrité des structures de données suivantes :
 - **RG-03 (Contrôle d'Unicité de la Matrice SFC) :** L'enregistrement d'une instance dans la table `QUITTANCE` impose une contrainte stricte d'index unique composite sur les attributs `(id_livre, num_feuille, attribut_volet)`. Toute tentative de saisie d'un triplet déjà existant en base de données doit lever une exception fatale et annuler l'encaissement. Le champ `num_feuille` doit être compris entre 1 et 50, et `attribut_volet` doit appartenir strictement à l'ensemble `['A', 'B', 'C', 'D', 'E']`.
 - **RG-04 (Algorithme d'Isolation des Séries Sécurisées) :** La validation d'un nouveau `LOT_LANCEMENT_SERIE` pour un produit est conditionnée par l'absence totale de chevauchement numérique. Le système doit exécuter une requête vérifiant qu'il n'existe aucun autre lot pour le même `id_produit` et le même `prefixe_serie` dont la plage `[num_debut, num_fin]` intersecte les bornes du nouveau lot soumis.
 - **RG-05 (Intégrité des Mouvements de Stock) :** Toute décrémentation de la `quantite_physique` dans la table `LIGNE_STOCK` via l'insertion d'un `MOUVEMENT_STOCK` de type 'SORTIE\_LIVR' doit être obligatoirement justifiée par un lien valide vers l'identifiant `id_livraison` d'un `BON_LIVRAISON` dûment validé.
+- **RG-06 (Facturation Préalable du Client Privé) :** Pour un client de type 'PRIVE', la `FACTURE` précède la livraison : une `COMMANDE` aux statuts `VALIDEE` ou `EN_PREPARATION` est facturable (lignes reprises de la commande) et passe à `FACTUREE` ; un `BON_LIVRAISON` ne peut être édité pour ce client que si la commande est `FACTUREE`. Pour un SOA, la commande doit être `LIVREE` avant d'être facturée (lignes reprises du bon de livraison).
 
 ---
 

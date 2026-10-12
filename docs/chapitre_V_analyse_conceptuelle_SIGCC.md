@@ -90,6 +90,8 @@ Ce chapitre est consacré à la formalisation conceptuelle du Système Intégré
 
 **RG-10 (Liaison Rationnelle des Avoirs) :** Un document d'AVOIR ne peut être généré que s'il est rattaché à une FACTURE initiale existante. Le montant cumulé des attributs `montant_avoir` de la table LIGNE_AVOIR ne peut jamais excéder le montant total TTC de la facture d'origine.
 
+**RG-19 (Facturation Préalable du Client Privé) :** Pour un client de type PRIVE, la FACTURE précède la livraison : une COMMANDE aux statuts `VALIDEE` ou `EN_PREPARATION` est facturable en reprenant les quantités de la LIGNE_COMMANDE (`quantite_commandee`, `prix_unitaire_facture`), et passe au statut `FACTUREE`. Une commande déjà `LIVREE` reste facturable en reprenant les quantités du BON_LIVRAISON. Pour un SOA (MINISTERE/CTD), la commande doit être `LIVREE` avant d'être facturée. L'édition d'un BON_LIVRAISON depuis une PREPARATION_COMMANDE d'un client privé est refusée tant que la commande n'est pas `FACTUREE`, et la livraison ne fait jamais repasser une commande `FACTUREE` à `LIVREE`. L'annulation d'une facture non payée fait repasser la commande à son statut pré-facture (`VALIDEE` sans préparation, `EN_PREPARATION` si une préparation existe sans BL, `LIVREE` si livrée).
+
 #### 📦 Bloc 5 : Catalogue Produits, Production & Logistique de Stock
 
 **RG-11 (Algorithme d'Isolation des Séries Sécurisées) :** L'insertion ou la modification d'un enregistrement dans la table LOT_LANCEMENT_SERIE est bloquée si pour le même `id_produit` et le même `prefixe_serie`, la plage numérique définie par `[num_debut, num_fin]` intersecte les bornes d'un autre lot déjà validé. Le calcul de l'attribut `quantite_lancee` est automatisé selon la formule : `(num_fin - num_debut) + 1`.
@@ -306,7 +308,7 @@ Voici l'ensemble des relations logiques Merise formalisées pour l'infrastructur
 - **CLIENT (0,N) ── [Passer] ── (1,1) COMMANDE :** Une commande corporative est passée par un unique client (flux public ou privé).
 - **COMMANDE (0,1) ── [Préparer] ── (1,1) PREPARATION_COMMANDE :** Une commande validée engendre un ordre de colisage et de préparation en atelier.
 - **PREPARATION_COMMANDE (0,1) ── [Générer] ── (1,1) BON_LIVRAISON :** L'ordre de préparation aboutit à l'édition du Bon de Livraison (BL) lors de l'expédition.
-- **COMMANDE (0,1) ── [Facturer] ── (1,1) FACTURE :** Une facture commerciale liquide financièrement une commande d'un client privé ou d'un SOA.
+- **COMMANDE (0,1) ── [Facturer] ── (1,1) FACTURE :** Une facture commerciale liquide financièrement une commande d'un client privé ou d'un SOA. *(Client privé : la facture précède la livraison — commande `VALIDEE`/`EN_PREPARATION`, lignes reprises de la commande. SOA : la commande doit être `LIVREE`, lignes reprises du bon de livraison.)*
 - **CLIENT (0,N) ── [Facturer Directement] ── (0,1) FACTURE :** *(Flux Vente Directe Comptoir)* Un client SIMPLE fait l'objet d'une facturation directe en guichet, sans passer par les étapes devis ni commande.
 - **FACTURE (0,1) ── [Livrer Comptoir] ── (0,1) BON_LIVRAISON :** *(Flux Vente Directe Comptoir)* La validation du paiement d'une facture comptoir directe déclenche directement l'édition du Bon de Livraison pour remise immédiate.
 - **FACTURE (0,N) ── [Rectifier] ── (1,1) AVOIR :** Une facture erronée ou faisant l'objet d'une anomalie est rectifiée par une fiche d'avoir.

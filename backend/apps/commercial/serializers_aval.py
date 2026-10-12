@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum
 from rest_framework import serializers
+from apps.clients.models import Client
 from apps.clients.permissions import peut_voir
 from apps.stock.services import disponible
 from .models import (
@@ -48,7 +49,17 @@ class PreparationCommandeSerializer(LignesMixin, serializers.ModelSerializer):
         inst = self.instance
         if inst is None:
             commande = attrs['commande']
-            if commande.statut_commande != Commande.Statut.VALIDEE:
+            if commande.statut_commande == Commande.Statut.FACTUREE:
+                # Facture avant préparation : réservé au client privé.
+                if commande.client.type_client != Client.TypeClient.PRIVE:
+                    raise serializers.ValidationError(
+                        {'commande': "La commande doit être au statut VALIDEE."}
+                    )
+                if hasattr(commande, 'preparation'):
+                    raise serializers.ValidationError(
+                        {'commande': "Cette commande a déjà une préparation."}
+                    )
+            elif commande.statut_commande != Commande.Statut.VALIDEE:
                 raise serializers.ValidationError(
                     {'commande': "La commande doit être au statut VALIDEE."}
                 )
@@ -89,13 +100,26 @@ class PreparationCommandeSerializer(LignesMixin, serializers.ModelSerializer):
         ]
 
     def creer_objet(self, validated):
-        cmd = Commande.objects.select_for_update().get(pk=validated['commande'].pk)
-        if cmd.statut_commande != Commande.Statut.VALIDEE:
+        cmd = Commande.objects.select_for_update().select_related('client').get(
+            pk=validated['commande'].pk
+        )
+        if cmd.statut_commande == Commande.Statut.FACTUREE:
+            # Facture avant préparation : réservé au client privé.
+            if cmd.client.type_client != Client.TypeClient.PRIVE:
+                raise serializers.ValidationError(
+                    {'commande': "La commande doit être au statut VALIDEE."}
+                )
+            if hasattr(cmd, 'preparation'):
+                raise serializers.ValidationError(
+                    {'commande': "Cette commande a déjà une préparation."}
+                )
+        elif cmd.statut_commande != Commande.Statut.VALIDEE:
             raise serializers.ValidationError(
                 {'commande': "La commande doit être au statut VALIDEE."}
             )
-        cmd.statut_commande = Commande.Statut.EN_PREPARATION
-        cmd.save(update_fields=['statut_commande'])
+        if cmd.statut_commande != Commande.Statut.FACTUREE:
+            cmd.statut_commande = Commande.Statut.EN_PREPARATION
+            cmd.save(update_fields=['statut_commande'])
         return PreparationCommande.objects.create(**validated)
 
 
@@ -137,6 +161,17 @@ class BonLivraisonSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'preparation': "La préparation doit être au statut PRETE."}
             )
+        if prep is not None:
+            # Client privé : la commande est facturée avant d'être livrée.
+            commande_prep = Commande.objects.select_related('client').filter(
+                pk=prep.commande_id
+            ).first()
+            if (commande_prep is not None
+                    and commande_prep.client.type_client == Client.TypeClient.PRIVE
+                    and commande_prep.statut_commande != Commande.Statut.FACTUREE):
+                raise serializers.ValidationError({
+                    'preparation': "Client privé : facturez la commande avant de la livrer."
+                })
         if fac is not None and fac.statut_paiement != Facture.StatutPaiement.PAYEE:
             raise serializers.ValidationError(
                 {'facture': "La facture comptoir doit être PAYEE avant la livraison."}
@@ -153,12 +188,20 @@ class BonLivraisonSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(
                         {'preparation': "La préparation doit être au statut PRETE."}
                     )
+                cmd = Commande.objects.select_for_update().select_related('client').get(
+                    pk=prep.commande_id
+                )
+                if (cmd.client.type_client == Client.TypeClient.PRIVE
+                        and cmd.statut_commande != Commande.Statut.FACTUREE):
+                    raise serializers.ValidationError({
+                        'preparation': "Client privé : facturez la commande avant de la livrer."
+                    })
                 source = [(l.produit, l.quantite_preparee) for l in prep.lignes.all()]
                 prep.statut_prepa = PreparationCommande.Statut.LIVREE
                 prep.save(update_fields=['statut_prepa'])
-                cmd = Commande.objects.select_for_update().get(pk=prep.commande_id)
-                cmd.statut_commande = Commande.Statut.LIVREE
-                cmd.save(update_fields=['statut_commande'])
+                if cmd.statut_commande != Commande.Statut.FACTUREE:
+                    cmd.statut_commande = Commande.Statut.LIVREE
+                    cmd.save(update_fields=['statut_commande'])
                 bl = BonLivraison.objects.create(num_bl=provisoire('BL'), preparation=prep)
             else:
                 fac = Facture.objects.select_for_update().get(pk=validated['facture'].pk)
@@ -241,13 +284,28 @@ class FactureSerializer(serializers.ModelSerializer):
                 "Votre rôle ne permet pas de facturer ce type de client."
             )
         if commande is not None:
-            if commande.statut_commande != Commande.Statut.LIVREE:
+            if hasattr(commande, 'facture'):
+                raise serializers.ValidationError(
+                    {'commande': "Cette commande est déjà facturée."}
+                )
+            if commande.client.type_client == Client.TypeClient.PRIVE:
+                # Client privé : la facture précède la livraison.
+                if commande.statut_commande not in (
+                    Commande.Statut.VALIDEE, Commande.Statut.EN_PREPARATION,
+                    Commande.Statut.LIVREE,
+                ):
+                    raise serializers.ValidationError({
+                        'commande': "La commande doit être VALIDEE, EN_PREPARATION "
+                                    "ou LIVREE pour être facturée."
+                    })
+            elif commande.statut_commande != Commande.Statut.LIVREE:
                 raise serializers.ValidationError(
                     {'commande': "La commande doit être LIVREE avant d'être facturée."}
                 )
             if attrs.get('lignes'):
                 raise serializers.ValidationError(
-                    {'lignes': "Les lignes viennent du bon de livraison : ne pas les fournir."}
+                    {'lignes': "Les lignes viennent de la commande (ou du bon de "
+                               "livraison) : ne pas les fournir."}
                 )
         else:
             if client.type_client != client.TypeClient.SIMPLE:
@@ -277,29 +335,60 @@ class FactureSerializer(serializers.ModelSerializer):
                 cmd = Commande.objects.select_for_update().select_related('client').get(
                     pk=commande.pk
                 )
-                if cmd.statut_commande != Commande.Statut.LIVREE:
+                if hasattr(cmd, 'facture'):
                     raise serializers.ValidationError(
-                        {'commande': "La commande doit être LIVREE avant d'être facturée."}
+                        {'commande': "Cette commande est déjà facturée."}
                     )
-                preparation = getattr(cmd, 'preparation', None)
-                bl = getattr(preparation, 'bon_livraison', None) if preparation else None
-                if bl is None:
-                    raise serializers.ValidationError(
-                        {'commande': "Aucun bon de livraison pour cette commande."}
-                    )
-                prix = {l.produit_id: l.prix_unitaire_facture for l in cmd.lignes.all()}
-                lignes = [
-                    {
-                        'produit': l.produit,
-                        'quantite_facturee': l.quantite_livree,
-                        'prix_unitaire': prix[l.produit_id],
-                    }
-                    for l in bl.lignes.select_related('produit')
-                ]
-                client_facture = cmd.client
-                cmd.statut_commande = Commande.Statut.FACTUREE
-                cmd.save(update_fields=['statut_commande'])
-                lien = {'commande': cmd}
+                if (cmd.client.type_client == Client.TypeClient.PRIVE
+                        and cmd.statut_commande in (
+                            Commande.Statut.VALIDEE, Commande.Statut.EN_PREPARATION,
+                        )):
+                    # Client privé : on facture les quantités commandées avant livraison.
+                    lignes = [
+                        {
+                            'produit': l.produit,
+                            'quantite_facturee': l.quantite_commandee,
+                            'prix_unitaire': l.prix_unitaire_facture,
+                        }
+                        for l in cmd.lignes.all()
+                    ]
+                    if not lignes:
+                        raise serializers.ValidationError(
+                            {'commande': "Cette commande ne contient aucune ligne."}
+                        )
+                    client_facture = cmd.client
+                    cmd.statut_commande = Commande.Statut.FACTUREE
+                    cmd.save(update_fields=['statut_commande'])
+                    lien = {'commande': cmd}
+                else:
+                    if cmd.statut_commande != Commande.Statut.LIVREE:
+                        if cmd.client.type_client == Client.TypeClient.PRIVE:
+                            raise serializers.ValidationError({
+                                'commande': "La commande doit être VALIDEE, EN_PREPARATION "
+                                            "ou LIVREE pour être facturée."
+                            })
+                        raise serializers.ValidationError(
+                            {'commande': "La commande doit être LIVREE avant d'être facturée."}
+                        )
+                    preparation = getattr(cmd, 'preparation', None)
+                    bl = getattr(preparation, 'bon_livraison', None) if preparation else None
+                    if bl is None:
+                        raise serializers.ValidationError(
+                            {'commande': "Aucun bon de livraison pour cette commande."}
+                        )
+                    prix = {l.produit_id: l.prix_unitaire_facture for l in cmd.lignes.all()}
+                    lignes = [
+                        {
+                            'produit': l.produit,
+                            'quantite_facturee': l.quantite_livree,
+                            'prix_unitaire': prix[l.produit_id],
+                        }
+                        for l in bl.lignes.select_related('produit')
+                    ]
+                    client_facture = cmd.client
+                    cmd.statut_commande = Commande.Statut.FACTUREE
+                    cmd.save(update_fields=['statut_commande'])
+                    lien = {'commande': cmd}
             else:
                 lignes = validated['lignes']
                 for l in lignes:
