@@ -34,7 +34,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // (sessionStorage : aucun token après un nouveau lancement → /login).
   useEffect(() => {
     // Sans token dans l'onglet courant : rien à restaurer (`loading` vaut déjà false).
-    if (!tokenStore.getAccess() && !tokenStore.getRefresh()) return;
+    // On retire aussi le marqueur éventuellement périmé (cookie partagé entre
+    // onglets, tokens eux cantonnés à l'onglet) : sinon le middleware croit
+    // la session active et reboucle / ↔ /login jusqu'à un vidage manuel.
+    if (!tokenStore.getAccess() && !tokenStore.getRefresh()) {
+      retirerMarqueurSession();
+      return;
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     let ignore = false; // garde anti-démontage : pas de setState après unmount

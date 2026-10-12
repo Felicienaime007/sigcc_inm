@@ -11,7 +11,9 @@ const NOM = "sigcc_session";
 
 export function poserMarqueurSession() {
   if (typeof document === "undefined") return;
-  document.cookie = `${NOM}=1; path=/; max-age=86400; SameSite=Lax`;
+  // Cookie de session (sans max-age : effacé à la fermeture du navigateur),
+  // cantonné à la navigation : les JWT restent en sessionStorage.
+  document.cookie = `${NOM}=1; path=/; SameSite=Lax`;
 }
 
 export function retirerMarqueurSession() {
