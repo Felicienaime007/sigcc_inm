@@ -208,7 +208,8 @@ export function ReglementDialog({
   const livreChoisi = form.watch("livre");
 
   async function validerChamps(noms: (keyof FormValues)[]): Promise<string | null> {
-    await form.trigger(noms);
+    const valide = await form.trigger(noms);
+    if (valide) return null;
     for (const nom of noms) {
       const message = form.getFieldState(nom).error?.message;
       if (message) return message;
