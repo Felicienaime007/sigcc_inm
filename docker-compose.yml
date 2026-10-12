@@ -23,12 +23,8 @@ services:
     image: nginx:1.27-alpine
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./docker/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ./docker/nginx/certs:/etc/nginx/certs:ro
-    environment:
-      DOMAIN: ${DOMAIN}
     depends_on:
       - backend
       - frontend
