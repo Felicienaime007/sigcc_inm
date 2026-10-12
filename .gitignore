@@ -36,3 +36,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Déploiement local (secrets + certificats TLS, jamais versionnés)
+docker/*.env
+docker/nginx/certs/

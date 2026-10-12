@@ -1,0 +1,35 @@
+services:
+  backend:
+    build: ./backend
+    env_file: docker/backend.env
+    # Oracle tourne sur l'hôte : joignable depuis le conteneur via ce nom.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_TVA_TAUX: ${TVA_TAUX:-0.2}
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    environment:
+      DOMAIN: ${DOMAIN}
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped

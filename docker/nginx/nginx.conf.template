@@ -1,0 +1,54 @@
+# HTTP -> HTTPS
+server {
+    listen 80;
+    server_name ${DOMAIN};
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${DOMAIN};
+
+    ssl_certificate /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+
+    client_max_body_size 10m;
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript image/svg+xml;
+
+    # Résolution DNS à l'exécution (les upstreams peuvent démarrer après Nginx)
+    resolver 127.0.0.11 valid=30s;
+
+    # API Django (le préfixe /api/ est conservé : le backend route /api/...)
+    location /api/ {
+        set $backend http://backend:8000;
+        proxy_pass $backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 120s;
+    }
+
+    # Fichiers statiques Django (admin, DRF) servis par WhiteNoise via le backend
+    location /static/ {
+        set $backend http://backend:8000;
+        proxy_pass $backend;
+        proxy_set_header Host $host;
+        proxy_read_timeout 30s;
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+
+    # Application Next.js
+    location / {
+        set $front http://frontend:3000;
+        proxy_pass $front;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}
