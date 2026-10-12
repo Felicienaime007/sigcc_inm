@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/input";
 import { RemoteSelect } from "@/components/data/remote-select";
 import { Field } from "@/components/forms/field";
+import { AmountInput } from "@/components/forms/amount-input";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { versNombre } from "@/lib/clients";
 import { anneeCourante } from "@/lib/dates";
@@ -111,7 +112,19 @@ export function BudgetDialog({ budget, onClose }: { budget: Budget | null; onClo
           <Input id="annee" inputMode="numeric" maxLength={4} {...form.register("annee")} />
         </Field>
         <Field label={t("budget.bdlg.montant")} htmlFor="montant" error={erreurs.montant?.message}>
-          <Input id="montant" inputMode="decimal" {...form.register("montant")} />
+          <Controller
+            control={form.control}
+            name="montant"
+            render={({ field }) => (
+              <AmountInput
+                id="montant"
+                value={field.value.trim() === "" ? null : versNombre(field.value)}
+                onChange={(v) => field.onChange(v === null ? "" : String(v))}
+                onBlur={field.onBlur}
+                name={field.name}
+              />
+            )}
+          />
         </Field>
       </div>
     </FormDialog>

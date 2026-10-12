@@ -19,6 +19,8 @@ import { RemoteSelect } from "@/components/data/remote-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
+import { AmountInput } from "@/components/forms/amount-input";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -166,20 +168,14 @@ function CaissesTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="tresorerie.caisses.vide"
-        actions={(c) => (
-          <>
-            {can("caisse.update") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.caisses.modifier")} aria-label={t("tresorerie.caisses.modifier")} onClick={() => setEdition({ mode: "edit", item: c })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("caisse.delete") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.caisses.supprimer")} aria-label={t("tresorerie.caisses.supprimer")} onClick={() => setASupprimer(c)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(c) => [
+          ...(can("caisse.update")
+            ? [{ key: "modifier", label: t("tresorerie.caisses.modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: c }) }]
+            : []),
+          ...(can("caisse.delete")
+            ? [{ key: "supprimer", label: t("tresorerie.caisses.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(c) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -199,13 +195,12 @@ function CaissesTab() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("tresorerie.caisses.suppr_titre")}
         description={t("tresorerie.caisses.suppr_desc", { libelle: aSupprimer?.libelle_caisse ?? "" })}
         confirmLabel={t("tresorerie.caisses.suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />
@@ -383,7 +378,19 @@ function JournalTab() {
             />
           </Field>
           <Field label={t("tresorerie.journal.champ_montant")} htmlFor="montant_op" error={form.formState.errors.montant_op?.message}>
-            <Input id="montant_op" inputMode="decimal" {...form.register("montant_op")} />
+            <Controller
+              control={form.control}
+              name="montant_op"
+              render={({ field }) => (
+                <AmountInput
+                  id="montant_op"
+                  value={field.value.trim() === "" ? null : versNombre(field.value)}
+                  onChange={(v) => field.onChange(v === null ? "" : String(v))}
+                  onBlur={field.onBlur}
+                  name={field.name}
+                />
+              )}
+            />
           </Field>
         </div>
         <Field label={t("tresorerie.journal.champ_motif")} htmlFor="reference" error={form.formState.errors.reference?.message}
@@ -624,25 +631,17 @@ function ArretesTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="tresorerie.arretes.vide"
-        actions={(a) => (
-          <>
-            {a.statut === "BROUILLON" && can("arrete_caisse.update") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.arretes.action_modifier")} aria-label={t("tresorerie.arretes.action_modifier")} onClick={() => setEdition({ item: a })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {a.statut === "BROUILLON" && can("arrete_caisse.valider") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.arretes.action_valider")} aria-label={t("tresorerie.arretes.action_valider")} onClick={() => setAValider(a)}>
-                <BookmarkCheck className="h-4 w-4 text-green-700" />
-              </Button>
-            )}
-            {a.statut === "VALIDE" && can("remise_banque.create") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.arretes.action_remettre")} aria-label={t("tresorerie.arretes.action_remettre")} onClick={() => setARemettre(a)}>
-                <Landmark className="h-4 w-4 text-green-700" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(a) => [
+          ...(a.statut === "BROUILLON" && can("arrete_caisse.update")
+            ? [{ key: "modifier", label: t("tresorerie.arretes.action_modifier"), icon: Pencil, onSelect: () => setEdition({ item: a }) }]
+            : []),
+          ...(a.statut === "BROUILLON" && can("arrete_caisse.valider")
+            ? [{ key: "valider", label: t("tresorerie.arretes.action_valider"), icon: BookmarkCheck, onSelect: () => setAValider(a) }]
+            : []),
+          ...(a.statut === "VALIDE" && can("remise_banque.create")
+            ? [{ key: "remettre", label: t("tresorerie.arretes.action_remettre"), icon: Landmark, onSelect: () => setARemettre(a) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -729,7 +728,19 @@ function ArretesTab() {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("tresorerie.arretes.champ_montant")} htmlFor="montant_remise_liee" error={formRemise.formState.errors.montant?.message}>
-            <Input id="montant_remise_liee" inputMode="decimal" autoFocus {...formRemise.register("montant")} />
+            <Controller
+              control={formRemise.control}
+              name="montant"
+              render={({ field }) => (
+                <AmountInput
+                  id="montant_remise_liee"
+                  value={field.value.trim() === "" ? null : versNombre(field.value)}
+                  onChange={(v) => field.onChange(v === null ? "" : String(v))}
+                  onBlur={field.onBlur}
+                  name={field.name}
+                />
+              )}
+            />
           </Field>
           <Field label={t("tresorerie.arretes.champ_contenu")} error={formRemise.formState.errors.modes?.message}>
             <Controller
@@ -753,11 +764,13 @@ function ArretesTab() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aValider !== null}
         onOpenChange={(o) => !o && setAValider(null)}
         title={t("tresorerie.arretes.valider_titre")}
         description={t("tresorerie.arretes.valider_desc", { date: aValider ? formatDate(aValider.date_arrete) : "", caisse: aValider?.code_caisse ?? "" })}
+        effetFinancier={aValider ? t("tresorerie.arretes.valider_effet", { date: formatDate(aValider.date_arrete), caisse: aValider.code_caisse, montant: formatAr(aValider.montant_compte) }) : undefined}
+        requireText={aValider?.code_caisse ?? undefined}
         confirmLabel={t("tresorerie.arretes.valider_btn")}
         loading={valider.isPending}
         onConfirm={confirmerValidation}
@@ -886,15 +899,11 @@ function RemisesTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="tresorerie.remises.vide"
-        actions={(r) => (
-          <>
-            {r.statut === "PREPAREE" && can("remise_banque.remettre") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.remises.action_executer")} aria-label={t("tresorerie.remises.action_executer")} onClick={() => setARemettre(r)}>
-                <Landmark className="h-4 w-4 text-green-700" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(r) =>
+          r.statut === "PREPAREE" && can("remise_banque.remettre")
+            ? [{ key: "executer", label: t("tresorerie.remises.action_executer"), icon: Landmark, onSelect: () => setARemettre(r) }]
+            : []
+        }
       />
 
       <FormDialog
@@ -925,7 +934,19 @@ function RemisesTab() {
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("tresorerie.remises.champ_montant")} htmlFor="montant_remise" error={form.formState.errors.montant?.message}>
-            <Input id="montant_remise" inputMode="decimal" autoFocus {...form.register("montant")} />
+            <Controller
+              control={form.control}
+              name="montant"
+              render={({ field }) => (
+                <AmountInput
+                  id="montant_remise"
+                  value={field.value.trim() === "" ? null : versNombre(field.value)}
+                  onChange={(v) => field.onChange(v === null ? "" : String(v))}
+                  onBlur={field.onBlur}
+                  name={field.name}
+                />
+              )}
+            />
           </Field>
           <Field label={t("tresorerie.remises.champ_contenu")} error={form.formState.errors.modes?.message}>
             <Controller

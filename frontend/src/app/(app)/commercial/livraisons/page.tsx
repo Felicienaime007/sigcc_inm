@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Eye, Truck } from "lucide-react";
 import { toast } from "sonner";
@@ -37,11 +37,19 @@ type Cible = { type: "facture"; id: number; libelle: string } | { type: "prepara
 function Contenu() {
   const { t } = useT();
   const { can } = useAuth();
-  // Lien profond (?bl=…) : on ouvre directement l'historique des bons
-  const [onglet, setOnglet] = useState(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("bl")
-      ? "bons" : "a-livrer",
-  );
+  // Lien profond (?bl=…) : on ouvre directement l'historique des bons.
+  // Valeurs neutres au premier rendu (identiques au SSR : pas d'erreur
+  // d'hydratation), l'URL n'est lue qu'après le montage.
+  const [onglet, setOnglet] = useState("a-livrer");
+  const [blInitial, setBlInitial] = useState("");
+  useEffect(() => {
+    const bl = new URLSearchParams(window.location.search).get("bl") ?? "";
+    if (bl) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setBlInitial(bl);
+      setOnglet("bons");
+    }
+  }, []);
   const [cible, setCible] = useState<Cible>(null);
 
   const livrer = useApiMutation(
@@ -86,7 +94,7 @@ function Contenu() {
             )}
           </TabsContent>
         )}
-        <TabsContent value="bons" className="mt-6"><Bons /></TabsContent>
+        <TabsContent value="bons" className="mt-6"><Bons key={blInitial} initialSearch={blInitial} /></TabsContent>
       </Tabs>
 
       <ConfirmDialog
@@ -179,14 +187,12 @@ function PreparationsPretes({ onLivrer }: { onLivrer: (p: Preparation) => void }
   );
 }
 
-function Bons() {
+function Bons({ initialSearch = "" }: { initialSearch?: string }) {
   const { t } = useT();
   // Lien profond depuis le journal des mouvements : ?bl=BL-2026-00012
-  const [rechercheInitiale] = useState(
-    () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("bl") ?? ""),
-  );
+  // (fourni par le parent après montage : identique au SSR au premier rendu).
   const liste = usePagedList<BonLivraison>(
-    "commercial/livraisons", { ordering: "-date_livraison", initialSearch: rechercheInitiale },
+    "commercial/livraisons", { ordering: "-date_livraison", initialSearch },
   );
   const [detail, setDetail] = useState<BonLivraison | null>(null);
 
@@ -216,13 +222,11 @@ function Bons() {
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="commercial.livraisons.vide_bons"
         actions={(b) => (
-          <>
-            <ImprimerButton icone chemin={`livraison/${b.id_livraison}`} libelle={t("commercial.livraisons.imprimer_bl")} />
-            <Button variant="ghost" size="icon" title={t("commercial.livraisons.detail")} aria-label={t("commercial.livraisons.detail")} onClick={() => setDetail(b)}>
-              <Eye className="h-4 w-4" />
-            </Button>
-          </>
+          <ImprimerButton icone chemin={`livraison/${b.id_livraison}`} libelle={t("commercial.livraisons.imprimer_bl")} />
         )}
+        rowActions={(b) => [
+          { key: "detail", label: t("commercial.livraisons.detail"), icon: Eye, onSelect: () => setDetail(b) },
+        ]}
       />
       {detail && (
         <LignesDialog

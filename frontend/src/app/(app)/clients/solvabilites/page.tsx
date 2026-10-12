@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { RequirePrivilege } from "@/components/can";
 import { PageHeader } from "@/components/page-header";
 import { SolvabiliteDialog } from "@/components/clients/solvabilite-dialog";
@@ -84,12 +83,10 @@ function Contenu() {
         pageSize={liste.pageSize}
         onPageChange={liste.setPage}
         emptyMessage="clients.solv.vide"
-        actions={(s) =>
-          can("solvabilite.update") && (
-            <Button variant="ghost" size="icon" title={t("clients.solv.modifier")} aria-label={t("clients.solv.modifier")} onClick={() => setEdition(s)}>
-              <Pencil className="h-4 w-4" />
-            </Button>
-          )
+        rowActions={(s) =>
+          can("solvabilite.update")
+            ? [{ key: "modifier", label: t("clients.solv.modifier"), icon: Pencil, onSelect: () => setEdition(s) }]
+            : []
         }
       />
 

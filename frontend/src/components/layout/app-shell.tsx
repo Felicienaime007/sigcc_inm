@@ -1,7 +1,7 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import { UserRound } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, LogOut, Menu, Moon, PanelLeft, Search, Sun } from "lucide-react";

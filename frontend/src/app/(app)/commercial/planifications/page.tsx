@@ -10,6 +10,7 @@ import { PlanificationDialog } from "@/components/commercial/planification-dialo
 import { DataTable, type Column } from "@/components/data/data-table";
 import { SearchInput } from "@/components/data/search-input";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { formatDate, formatNombre } from "@/lib/format";
@@ -86,23 +87,15 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="commercial.planifications.vide"
-        actions={(p) => (
-          <>
-            <Button variant="ghost" size="icon" title={t("commercial.planifications.detail")} aria-label={t("commercial.planifications.detail")} onClick={() => setDetail(p)}>
-              <Eye className="h-4 w-4" />
-            </Button>
-            {can("planification.update") && (
-              <Button variant="ghost" size="icon" title={t("commercial.planifications.modifier")} aria-label={t("commercial.planifications.modifier")} onClick={() => setEdition({ mode: "edit", item: p })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("planification.delete") && (
-              <Button variant="ghost" size="icon" title={t("commercial.planifications.supprimer")} aria-label={t("commercial.planifications.supprimer")} onClick={() => setASupprimer(p)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(p) => [
+          { key: "detail", label: t("commercial.planifications.detail"), icon: Eye, onSelect: () => setDetail(p) },
+          ...(can("planification.update")
+            ? [{ key: "modifier", label: t("commercial.planifications.modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: p }) }]
+            : []),
+          ...(can("planification.delete")
+            ? [{ key: "supprimer", label: t("commercial.planifications.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(p) }]
+            : []),
+        ]}
       />
 
       {edition && (
@@ -125,13 +118,12 @@ function Contenu() {
         />
       )}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("commercial.planifications.confirm_titre")}
         description={t("commercial.planifications.confirm_desc", { periode: aSupprimer?.periode_cible ?? "", client: aSupprimer?.nom_client ?? "" })}
         confirmLabel={t("commercial.planifications.confirm_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

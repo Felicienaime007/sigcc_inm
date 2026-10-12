@@ -11,6 +11,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { ReservationDialog } from "@/components/stock/reservation-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { api } from "@/lib/api";
@@ -138,18 +139,16 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="stock.reservations.vide"
-        actions={(r) =>
-          can("reservation.delete") ? (
-            <Button variant="ghost" size="icon" title={t("stock.reservations.act_liberer")} aria-label={t("stock.reservations.act_liberer")} onClick={() => setALiberer(r)}>
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          ) : null
+        rowActions={(r) =>
+          can("reservation.delete")
+            ? [{ key: "liberer", label: t("stock.reservations.act_liberer"), icon: Trash2, danger: true, onSelect: () => setALiberer(r) }]
+            : []
         }
       />
 
       {creation && <ReservationDialog onClose={() => setCreation(false)} />}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aLiberer !== null}
         onOpenChange={(o) => !o && setALiberer(null)}
         title={t("stock.reservations.confirm_liberer_titre")}
@@ -159,7 +158,6 @@ function Contenu() {
             : t("stock.reservations.confirm_liberer_sans_cmd", { qte: aLiberer?.quantite_bloquee ?? "", code: aLiberer?.code_produit ?? "" })
         }
         confirmLabel={t("stock.reservations.confirm_liberer_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={liberer}
       />

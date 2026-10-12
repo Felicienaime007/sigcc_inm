@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data/data-table";
 import { SearchInput } from "@/components/data/search-input";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -143,20 +144,14 @@ function Contenu() {
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
         emptyMessage="clients.org.vide"
-        actions={(o) => (
-          <>
-            {can("organisme.update") && (
-              <Button variant="ghost" size="icon" title={t("clients.org.modifier")} aria-label={t("clients.org.modifier")} onClick={() => ouvrirEdition(o)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("organisme.delete") && (
-              <Button variant="ghost" size="icon" title={t("clients.org.supprimer")} aria-label={t("clients.org.supprimer")} onClick={() => setASupprimer(o)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(o) => [
+          ...(can("organisme.update")
+            ? [{ key: "modifier", label: t("clients.org.modifier"), icon: Pencil, onSelect: () => ouvrirEdition(o) }]
+            : []),
+          ...(can("organisme.delete")
+            ? [{ key: "supprimer", label: t("clients.org.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(o) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -180,13 +175,12 @@ function Contenu() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("clients.org.suppr_titre")}
         description={t("clients.org.suppr_desc", { nom: aSupprimer?.nom_organisme ?? "" })}
         confirmLabel={t("clients.org.supprimer_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

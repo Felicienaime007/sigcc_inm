@@ -217,28 +217,18 @@ function ParProduit({
         page={courante} pageSize={TAILLE} onPageChange={setPage}
         ordering={ordering} onOrderingChange={setOrdering}
         emptyMessage="stock.niveaux.vide_produits"
-        actions={(r) => (
-          <>
-            <Button variant="ghost" size="icon" title={t("stock.niveaux.act_detail")} aria-label={t("stock.niveaux.act_detail")} onClick={() => ouvrir("detail", r)}>
-              <Eye className="h-4 w-4" />
-            </Button>
-            {can("mouvement.create") && (
-              <Button variant="ghost" size="icon" title={t("stock.niveaux.act_mouvement")} aria-label={t("stock.niveaux.act_mouvement")} onClick={() => ouvrir("mouvement", r)}>
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
-            )}
-            {can("stock.transfer") && (
-              <Button variant="ghost" size="icon" title={t("stock.niveaux.act_transferer")} aria-label={t("stock.niveaux.act_transferer")} onClick={() => ouvrir("transfert", r)}>
-                <ArrowLeftRight className="h-4 w-4" />
-              </Button>
-            )}
-            {can("reservation.create") && (
-              <Button variant="ghost" size="icon" title={t("stock.niveaux.act_reserver")} aria-label={t("stock.niveaux.act_reserver")} onClick={() => ouvrir("reservation", r)}>
-                <BookmarkPlus className="h-4 w-4" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(r) => [
+          { key: "detail", label: t("stock.niveaux.act_detail"), icon: Eye, onSelect: () => ouvrir("detail", r) },
+          ...(can("mouvement.create")
+            ? [{ key: "mouvement", label: t("stock.niveaux.act_mouvement"), icon: SlidersHorizontal, onSelect: () => ouvrir("mouvement", r) }]
+            : []),
+          ...(can("stock.transfer")
+            ? [{ key: "transferer", label: t("stock.niveaux.act_transferer"), icon: ArrowLeftRight, onSelect: () => ouvrir("transfert", r) }]
+            : []),
+          ...(can("reservation.create")
+            ? [{ key: "reserver", label: t("stock.niveaux.act_reserver"), icon: BookmarkPlus, onSelect: () => ouvrir("reservation", r) }]
+            : []),
+        ]}
       />
     </div>
   );

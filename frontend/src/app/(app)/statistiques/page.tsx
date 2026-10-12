@@ -2,8 +2,11 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RequirePrivilege } from "@/components/can";
 import { StatusBadge } from "@/components/data/status-badge";
@@ -43,7 +46,7 @@ function Carte({ titre, children, className }: { titre: string; children: React.
 function Contenu() {
   const { t } = useT();
   const [annee, setAnnee] = useState<number | null>(null);
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["statistiques", annee],
     queryFn: async () =>
       (await api.get<Tableau>("/statistiques/tableau-de-bord/", { params: annee ? { annee } : {} })).data,
@@ -52,10 +55,36 @@ function Contenu() {
   });
 
   if (isLoading) {
-    return <div className="flex justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+    return (
+      <div className="space-y-6" aria-label={t("commun.chargement")}>
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-xl" />)}
+        </div>
+      </div>
+    );
   }
   if (error || !data) {
-    return <p className="py-16 text-center text-destructive">{getErrorMessage(error, t("stats.page.erreur"))}</p>;
+    return (
+      <Card>
+        <EmptyState
+          icon={TriangleAlert}
+          title={getErrorMessage(error, t("stats.page.erreur"))}
+          description={t("commun.verifiez_connexion")}
+          action={
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              {t("commun.reessayer")}
+            </Button>
+          }
+        />
+      </Card>
+    );
   }
 
   const { ventes, encaissements, creances, commandes, budget, stock, production, recouvrement, caisses } = data;

@@ -15,16 +15,20 @@ import {
   FileText,
   Loader2,
   Lock,
+  Moon,
   Printer,
   Receipt,
   ShieldCheck,
+  Sun,
   User,
   type LucideIcon,
 } from "lucide-react";
 import { Bricolage_Grotesque, Plus_Jakarta_Sans } from "next/font/google";
+import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SelecteurLangue } from "@/components/i18n/selecteur-langue";
 import { useAuth } from "@/lib/auth-context";
 import { useT } from "@/lib/i18n/contexte";
 import { getErrorMessage } from "@/lib/errors";
@@ -66,7 +70,7 @@ const STYLES = `
   font-family: var(--font-display, system-ui), ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Trame CMJN en CSS pur : trois nappes de points légèrement décalées, comme une épreuve d'impression */
+/* Trame en CSS pur : nappes de points bleu nuit / blanc, assorties au bleu sombre du menu */
 .trame-group { will-change: transform; animation: trame-float 26s ease-in-out infinite alternate; }
 @keyframes trame-float { to { transform: translate3d(0, -16px, 0); } }
 .trame {
@@ -76,9 +80,9 @@ const STYLES = `
   -webkit-mask-image: radial-gradient(closest-side, #000 35%, transparent 100%);
   mask-image: radial-gradient(closest-side, #000 35%, transparent 100%);
 }
-.trame-c { left: 0;   top: 5%;  opacity: .55; background-image: radial-gradient(circle, #2BC4CC 1.7px, transparent 2.3px); }
-.trame-m { left: 30%; top: 15%; opacity: .50; background-image: radial-gradient(circle, #E6007E 1.7px, transparent 2.3px); background-position: 4px 3px; }
-.trame-y { left: 12%; top: 32%; opacity: .42; background-image: radial-gradient(circle, #FFD400 1.7px, transparent 2.3px); background-position: 8px 6px; }
+.trame-c { left: 0;   top: 5%;  opacity: .35; background-image: radial-gradient(circle, #8EA2FF 1.7px, transparent 2.3px); }
+.trame-m { left: 30%; top: 15%; opacity: .30; background-image: radial-gradient(circle, #FFFFFF 1.7px, transparent 2.3px); background-position: 4px 3px; }
+.trame-y { left: 12%; top: 32%; opacity: .22; background-image: radial-gradient(circle, #4FC9CE 1.7px, transparent 2.3px); background-position: 8px 6px; }
 
 /* Entrée unique du parcours */
 @keyframes slip-in {
@@ -113,13 +117,13 @@ const STYLES = `
 `;
 
 const inputClass =
-  "h-12 rounded-lg border-slate-300 bg-white pl-11 text-base text-slate-900 shadow-sm transition-colors " +
+  "h-12 rounded-xl border-slate-300 bg-white pl-11 text-base text-slate-900 shadow-xs transition-colors " +
   "placeholder:text-slate-400 hover:border-slate-400 " +
   "dark:border-input dark:bg-input/30 dark:text-foreground dark:placeholder:text-muted-foreground " +
-  "focus-visible:border-[#0E7C82] focus-visible:ring-4 focus-visible:ring-[#0E7C82]/15 focus-visible:ring-offset-0 " +
-  "aria-[invalid=true]:border-red-400 aria-[invalid=true]:ring-red-100";
+  "focus-visible:border-[#1d2c5e] focus-visible:ring-0 focus-visible:ring-offset-0 " +
+  "aria-[invalid=true]:border-red-400";
 
-/* ───────── Trame CMJN ───────── */
+/* ───────── Trame bleu nuit ───────── */
 function TrameCMJN({ className = "" }: { className?: string }) {
   return (
     <div aria-hidden="true" className={`trame-group pointer-events-none absolute ${className}`}>
@@ -181,14 +185,14 @@ const ETAPES: (Omit<Etape, "titre" | "detail" | "statut"> & { cle: "devis" | "co
 ];
 
 const marqueur: Record<Etape["etat"], string> = {
-  fait: "bg-[#4FC9CE] text-[#06363A]",
-  "en-cours": "bg-white text-[#0E7C82] pulse-ring",
-  "a-venir": "bg-[#0A4A4F] text-white/70 ring-1 ring-inset ring-white/25",
+  fait: "bg-white text-[#1d2c5e]",
+  "en-cours": "bg-[#8EA2FF] text-[#121c46] pulse-ring",
+  "a-venir": "bg-white/10 text-white/70 ring-1 ring-inset ring-white/25",
 };
 
 const pastille: Record<Etape["etat"], string> = {
-  fait: "bg-[#4FC9CE]/20 text-[#9BEAED]",
-  "en-cours": "bg-white text-[#0A5F65]",
+  fait: "bg-white/15 text-white",
+  "en-cours": "bg-[#8EA2FF] text-[#121c46]",
   "a-venir": "bg-white/10 text-white/75",
 };
 
@@ -203,7 +207,7 @@ function Parcours() {
     <ol className="relative space-y-3" aria-label={t("login.parcours_label")}>
       <span
         aria-hidden="true"
-        className="pipeline-line absolute bottom-6 left-[19px] top-6 w-px bg-gradient-to-b from-[#4FC9CE] via-white/40 to-white/10"
+        className="pipeline-line absolute bottom-6 left-[19px] top-6 w-px bg-gradient-to-b from-white via-white/40 to-white/10"
       />
       {ETAPES.map(({ cle, etat, Icon }, i) => {
         const { titre, detail, statut } = textes[cle];
@@ -216,7 +220,7 @@ function Parcours() {
           <span className={`z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${marqueur[etat]}`}>
             <Icon className="h-[18px] w-[18px]" />
           </span>
-          <div className="flex flex-1 items-center justify-between gap-3 rounded-xl border border-white/15 bg-[#0C4A4F] px-4 py-3">
+          <div className="flex flex-1 items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-3 ring-1 ring-white/10">
             <div>
               <p className="text-sm font-semibold text-white">{titre}</p>
               <p className="text-xs text-white/70">{detail}</p>
@@ -229,6 +233,24 @@ function Parcours() {
         );
       })}
     </ol>
+  );
+}
+
+/* ───────── Bascule clair / sombre (page hors coquille applicative) ───────── */
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const { t } = useT();
+  const sombre = resolvedTheme === "dark";
+  return (
+    <Button
+      variant="ghost" size="icon"
+      className="h-8 w-8 shrink-0"
+      title={sombre ? t("shell.theme_clair") : t("shell.theme_sombre")}
+      aria-label={sombre ? t("shell.theme_clair") : t("shell.theme_sombre")}
+      onClick={() => setTheme(sombre ? "light" : "dark")}
+    >
+      {sombre ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </Button>
   );
 }
 
@@ -303,7 +325,7 @@ export default function LoginPage() {
       <style>{STYLES}</style>
 
       {/* ───────── Panneau visuel (desktop) ───────── */}
-      <aside className="relative hidden overflow-hidden bg-[#07363A] lg:flex lg:flex-col lg:justify-between lg:p-14">
+      <aside className="relative hidden overflow-hidden bg-gradient-to-b from-[#1a2757] via-[#1d2c5e] to-[#121c46] lg:flex lg:flex-col lg:justify-between lg:p-14">
         <TrameCMJN className="top-[6%] h-[640px] w-[640px] lg:-right-52 xl:-right-28" />
         <RepèresDeCoupe />
 
@@ -326,7 +348,7 @@ export default function LoginPage() {
       </aside>
 
       {/* ───────── Bandeau mobile ───────── */}
-      <header className="relative overflow-hidden bg-[#07363A] px-6 pb-12 pt-8 lg:hidden">
+      <header className="relative overflow-hidden bg-gradient-to-b from-[#1a2757] via-[#1d2c5e] to-[#121c46] px-6 pb-12 pt-8 lg:hidden">
         <TrameCMJN className="-right-24 -top-24 h-[320px] w-[320px]" />
         <div className="relative z-10">
           <Brand compact />
@@ -336,26 +358,41 @@ export default function LoginPage() {
       {/* ───────── Formulaire ───────── */}
       {enAttente ? (
         <main className="flex items-center justify-center bg-white p-6 lg:bg-slate-50 dark:bg-background dark:lg:bg-muted/20">
-          <Loader2 className="h-7 w-7 animate-spin text-[#0E7C82]" aria-label="Chargement" />
+          <Loader2 className="h-7 w-7 animate-spin text-[#1d2c5e]" aria-label="Chargement" />
         </main>
       ) : (
-        <main className="relative z-10 -mt-6 flex items-start justify-center rounded-t-[28px] bg-white px-6 pb-10 pt-9 sm:px-10 lg:mt-0 lg:items-center lg:rounded-none lg:bg-slate-50 lg:py-12 dark:bg-background dark:lg:bg-muted/20">
-          <div className="w-full max-w-[26rem] lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white lg:p-10 lg:shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-12px_rgba(15,23,42,0.12)] dark:lg:border-border dark:lg:bg-card dark:lg:shadow-none">
-            <div className="mb-8">
-              <h2 className="sg-display text-3xl font-bold tracking-tight text-slate-900 dark:text-foreground">{t("login.titre")}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-muted-foreground">
-                {t("login.sous_titre")}
-              </p>
+        <main className="relative z-10 -mt-6 flex items-start justify-center overflow-hidden rounded-t-[28px] bg-white px-6 pb-10 pt-9 sm:px-10 lg:mt-0 lg:items-center lg:rounded-none lg:bg-slate-50 lg:py-12 dark:bg-background dark:lg:bg-muted/20">
+          {/* Halo discret : rappel du bleu nuit, adaptatif au thème */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(36rem_14rem_at_50%_0rem,color-mix(in_oklab,var(--primary)_9%,transparent),transparent_70%)]"
+          />
+          <div className="relative w-full max-w-[26rem] lg:rounded-[20px] lg:border lg:border-slate-200/90 lg:bg-white lg:p-10 lg:shadow-[0_1px_2px_rgba(15,23,42,0.05),0_24px_48px_-24px_rgba(29,44,94,0.28)] dark:lg:border-border dark:lg:bg-card dark:lg:shadow-none">
+            <div className="mb-7 flex items-start justify-between gap-3">
+              <div>
+                <p className="mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-[#1d2c5e]/15 bg-[#1d2c5e]/[0.06] px-2.5 py-1 text-[11px] font-semibold tracking-wide text-[#1d2c5e] uppercase dark:border-primary/25 dark:bg-primary/10 dark:text-primary">
+                  <Lock className="h-3 w-3" aria-hidden />
+                  {t("login.espace_securise")}
+                </p>
+                <h2 className="sg-display text-[28px] font-bold tracking-tight text-slate-900 dark:text-foreground">{t("login.titre")}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-600 dark:text-muted-foreground">
+                  {t("login.sous_titre")}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-0.5 pt-1">
+                <SelecteurLangue />
+                <ThemeToggle />
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {/* Identifiant */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="identifiant" className="text-sm font-semibold text-slate-800 dark:text-foreground">
                   {t("login.identifiant")}
                 </Label>
                 <div className="group relative">
-                  <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#0E7C82]" />
+                  <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#1d2c5e]" />
                   <Input
                     id="identifiant"
                     autoComplete="username"
@@ -363,6 +400,7 @@ export default function LoginPage() {
                     spellCheck={false}
                     autoFocus
                     placeholder={t("login.ph_identifiant")}
+                    enterKeyHint="next"
                     aria-invalid={!!errors.identifiant}
                     aria-describedby={errors.identifiant ? "identifiant-erreur" : undefined}
                     className={inputClass}
@@ -377,17 +415,18 @@ export default function LoginPage() {
               </div>
 
               {/* Mot de passe */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-sm font-semibold text-slate-800 dark:text-foreground">
                   {t("login.mdp")}
                 </Label>
                 <div className="group relative">
-                  <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#0E7C82]" />
+                  <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[#1d2c5e]" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     placeholder={t("login.ph_mdp")}
+                    enterKeyHint="go"
                     aria-invalid={!!errors.password}
                     aria-describedby={errors.password ? "password-erreur" : undefined}
                     className={`${inputClass} pr-12`}
@@ -399,7 +438,7 @@ export default function LoginPage() {
                     onClick={() => setShowPassword((v) => !v)}
                     aria-label={showPassword ? t("login.masquer_mdp") : t("login.afficher_mdp")}
                     aria-pressed={showPassword}
-                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0E7C82] dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
+                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1d2c5e] dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -410,8 +449,8 @@ export default function LoginPage() {
                   </p>
                 )}
                 {capsLock && (
-                  <p className="flex items-center gap-1.5 text-sm text-amber-700">
-                    <ArrowUp className="h-3.5 w-3.5" />
+                  <p className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[13px] font-medium text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-400">
+                    <ArrowUp className="h-3.5 w-3.5 shrink-0" />
                     {t("login.caps")}
                   </p>
                 )}
@@ -423,7 +462,7 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 accent-[#0E7C82]"
+                  className="h-4 w-4 rounded border-slate-300 accent-[#1d2c5e]"
                 />
                 {t("login.souvenir")}
               </label>
@@ -432,7 +471,7 @@ export default function LoginPage() {
               {erreur && (
                 <div
                   role="alert"
-                  className="err-in flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm text-red-800"
+                  className="err-in flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
                 >
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{erreur}</span>
@@ -442,7 +481,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="group h-12 w-full rounded-lg bg-[#0E7C82] text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#0A666B] active:translate-y-px focus-visible:ring-4 focus-visible:ring-[#0E7C82]/25 focus-visible:ring-offset-0 disabled:opacity-70"
+                className="group h-12 w-full rounded-xl bg-[#1d2c5e] text-base font-semibold text-white shadow-lg shadow-[#1d2c5e]/25 transition-all hover:bg-[#16224d] hover:shadow-xl hover:shadow-[#1d2c5e]/20 active:translate-y-px focus-visible:ring-4 focus-visible:ring-[#1d2c5e]/25 focus-visible:ring-offset-0 disabled:opacity-70 dark:shadow-none"
               >
                 {isSubmitting ? (
                   <>
@@ -458,18 +497,15 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <p className="mt-6 text-sm text-slate-600 dark:text-muted-foreground">
+            <p className="mt-5 text-[13px] leading-relaxed text-slate-500 dark:text-muted-foreground">
               {t("login.oublie")}
             </p>
 
-            <div className="mt-8 space-y-2 border-t border-slate-200 pt-5 dark:border-border">
-              <p className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-[#0E7C82]" />
-                {t("login.reserve")}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-muted-foreground">
-                {t("login.droits", { annee: new Date().getFullYear() })}
-              </p>
+            <div className="mt-6 flex items-center gap-2 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-border dark:text-muted-foreground">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#1d2c5e] dark:text-primary" />
+              <p className="font-medium">{t("login.reserve")}</p>
+              <span aria-hidden className="text-slate-300 dark:text-muted-foreground/50">·</span>
+              <p className="truncate">{t("login.droits", { annee: new Date().getFullYear() })}</p>
             </div>
           </div>
         </main>

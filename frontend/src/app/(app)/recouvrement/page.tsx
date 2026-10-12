@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, FolderPlus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -296,6 +296,7 @@ function ImpayesTab() {
 // ---------------------------------------------------------------------- Dossiers
 function DossiersTab() {
   const { t } = useT();
+  const router = useRouter();
   const liste = usePagedList<Dossier>("recouvrement/dossiers", { ordering: "-date_relance", refetchInterval: 30_000 });
 
   const colonnes: Column<Dossier>[] = [
@@ -343,13 +344,13 @@ function DossiersTab() {
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="recouvrement.dossiers.vide"
         actions={(d) => (
-          <>
-            {d.statut_dossier !== "REGLE" && (
-              <ImprimerButton icone chemin={`relance/${d.id_recouvrement}`} libelle={t("recouvrement.dossiers.imprimer")} />
-            )}
-            <Link href={`/recouvrement/${d.id_recouvrement}`} className={buttonVariants({ variant: "ghost", size: "icon" })} title={t("recouvrement.dossiers.ouvrir")}><Eye className="h-4 w-4" /></Link>
-          </>
+          d.statut_dossier !== "REGLE" && (
+            <ImprimerButton icone chemin={`relance/${d.id_recouvrement}`} libelle={t("recouvrement.dossiers.imprimer")} />
+          )
         )}
+        rowActions={(d) => [
+          { key: "ouvrir", label: t("recouvrement.dossiers.ouvrir"), icon: Eye, onSelect: () => router.push(`/recouvrement/${d.id_recouvrement}`) },
+        ]}
       />
     </div>
   );

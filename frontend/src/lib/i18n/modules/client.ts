@@ -167,6 +167,7 @@ export const clientFr: Dict = {
       recherche: "Recherche…",
       aucun: "Aucun client trouvé.",
       sans_detail: "Aucun détail",
+      creer: "Créer « {nom} »",
     },
   },
   budget: {
@@ -265,6 +266,7 @@ export const clientFr: Dict = {
       rattache_hint: "Rattaché à une commande : annulez d'abord la commande",
       annuler: "Annuler l'engagement",
       annuler_titre: "Annuler l'engagement ?",
+      annuler_effet: "Effet financier : {montant} restitués au crédit de la ligne {code}.",
       annuler_desc: "L'engagement {num} ({montant}) est annulé et son montant est restitué au crédit de la ligne {code}. Cette action est définitive.",
       annuler_btn: "Annuler l'engagement",
     },

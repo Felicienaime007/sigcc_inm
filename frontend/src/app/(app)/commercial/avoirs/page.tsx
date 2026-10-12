@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Eye, PackageCheck, HandCoins } from "lucide-react";
 import { RequirePrivilege } from "@/components/can";
 import { ImprimerButton } from "@/components/editions/imprimer-button";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { LignesDialog } from "@/components/commercial/lignes-dialog";
 import { DataTable, type Column } from "@/components/data/data-table";
@@ -103,29 +102,17 @@ function Contenu() {
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="commercial.avoirs.vide"
         actions={(a) => (
-          <>
-            <ImprimerButton icone chemin={`avoir/${a.id_avoir}`} libelle={t("commercial.avoirs.imprimer")} />
-            <Button variant="ghost" size="icon" title={t("commercial.avoirs.detail")} aria-label={t("commercial.avoirs.detail")} onClick={() => setDetail(a)}>
-              <Eye className="h-4 w-4" />
-            </Button>
-            {can("mouvement.create") && (
-              <Button
-                variant="ghost" size="icon" title={t("commercial.avoirs.remettre")} aria-label={t("commercial.avoirs.remettre")}
-                onClick={() => { setEmplacement(null); setErreur(null); setARetourner(a); }}
-              >
-                <PackageCheck className="h-4 w-4" />
-              </Button>
-            )}
-            {can("avoir.rembourser") && a.statut_remboursement === "A_REMBOURSER" && (
-              <Button
-                variant="ghost" size="icon" title={t("commercial.avoirs.rembourser")} aria-label={t("commercial.avoirs.rembourser")}
-                onClick={() => { setCaisse(null); setErreurRemboursement(null); setARembourser(a); }}
-              >
-                <HandCoins className="h-4 w-4" />
-              </Button>
-            )}
-          </>
+          <ImprimerButton icone chemin={`avoir/${a.id_avoir}`} libelle={t("commercial.avoirs.imprimer")} />
         )}
+        rowActions={(a) => [
+          { key: "detail", label: t("commercial.avoirs.detail"), icon: Eye, onSelect: () => setDetail(a) },
+          ...(can("mouvement.create")
+            ? [{ key: "remettre", label: t("commercial.avoirs.remettre"), icon: PackageCheck, onSelect: () => { setEmplacement(null); setErreur(null); setARetourner(a); } }]
+            : []),
+          ...(can("avoir.rembourser") && a.statut_remboursement === "A_REMBOURSER"
+            ? [{ key: "rembourser", label: t("commercial.avoirs.rembourser"), icon: HandCoins, onSelect: () => { setCaisse(null); setErreurRemboursement(null); setARembourser(a); } }]
+            : []),
+        ]}
       />
 
       {detail && (

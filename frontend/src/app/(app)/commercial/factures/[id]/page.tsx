@@ -7,13 +7,11 @@ import { ArrowLeft, Loader2, Truck, Undo2, Banknote, Landmark, XCircle } from "l
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { RequirePrivilege } from "@/components/can";
 import { AvoirDialog } from "@/components/commercial/avoir-dialog";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
-import { Field } from "@/components/forms/field";
-import { FormDialog } from "@/components/forms/form-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { libelleFacturation } from "@/lib/commercial";
@@ -56,7 +54,6 @@ function Contenu() {
   const [avoirOuvert, setAvoirOuvert] = useState(false);
   const [livrer, setLivrer] = useState(false);
   const [annuler, setAnnuler] = useState(false);
-  const [motif, setMotif] = useState("");
   const [erreurAnnulation, setErreurAnnulation] = useState<string | null>(null);
 
   const livraison = useApiMutation(
@@ -106,13 +103,12 @@ function Contenu() {
     setLivrer(false);
   }
 
-  async function confirmerAnnulation() {
+  async function confirmerAnnulation(motif: string) {
     setErreurAnnulation(null);
     if (!motif.trim()) return setErreurAnnulation(t("commercial.facture_detail.err_motif_obligatoire"));
     try {
       await annulation.mutateAsync({ motif: motif.trim() });
       setAnnuler(false);
-      setMotif("");
     } catch (e) {
       setErreurAnnulation(getErrorMessage(e));
     }
@@ -161,7 +157,7 @@ function Contenu() {
               </Button>
             )}
             {peutAnnuler && (
-              <Button variant="outline" className="text-destructive" onClick={() => { setMotif(""); setErreurAnnulation(null); setAnnuler(true); }}>
+                <Button variant="outline" className="text-destructive" onClick={() => { setErreurAnnulation(null); setAnnuler(true); }}>
                 <XCircle className="mr-2 h-4 w-4" /> {t("commercial.facture_detail.annuler_facture")}
               </Button>
             )}
@@ -293,24 +289,21 @@ function Contenu() {
         loading={livraison.isPending}
         onConfirm={confirmerLivraison}
       />
-      <FormDialog
+      <DangerConfirm
         open={annuler}
         onOpenChange={setAnnuler}
         title={t("commercial.facture_detail.ann_titre", { x: facture.num_facture })}
         description={t("commercial.facture_detail.ann_desc")}
-        onSubmit={(e) => { e?.preventDefault(); void confirmerAnnulation(); }}
-        submitting={annulation.isPending}
+        effetFinancier={t("commercial.facture_detail.ann_effet", { x: facture.num_facture, montant: formatAr(facture.montant_ttc) })}
+        requireText={facture.num_facture}
+        motifLabel={t("commercial.facture_detail.ann_champ")}
+        motifPlaceholder={t("commercial.facture_detail.ann_ph")}
+        motifRequired
+        confirmLabel={t("commercial.facture_detail.ann_btn")}
+        loading={annulation.isPending}
         error={erreurAnnulation}
-        submitLabel={t("commercial.facture_detail.ann_btn")}
-      >
-        <Field label={t("commercial.facture_detail.ann_champ")} htmlFor="motif_facture">
-          <Textarea
-            id="motif_facture" autoFocus rows={3}
-            value={motif} onChange={(e) => setMotif(e.target.value)}
-            placeholder={t("commercial.facture_detail.ann_ph")}
-          />
-        </Field>
-      </FormDialog>
+        onConfirm={(motif) => void confirmerAnnulation(motif)}
+      />
             {reglementMode && (
         <ReglementDialog
           open

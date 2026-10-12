@@ -1,9 +1,7 @@
 "use client";
 
-import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SideSheet } from "@/components/forms/side-sheet";
 import { useAuth } from "@/lib/auth-context";
 import { useT } from "@/lib/i18n/contexte";
 import { formatDate, formatDateTime, formatNombre } from "@/lib/format";
@@ -25,19 +23,17 @@ export function DetailProduitDialog({ resume, onClose }: { resume: ResumeStock; 
   );
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{resume.designation}</DialogTitle>
-          <DialogDescription>
-            {t("stock.dialog_detail.description", {
-              code: resume.code_produit,
-              phys: formatNombre(resume.quantite_physique),
-              resa: formatNombre(resume.quantite_reservee),
-              dispo: formatNombre(resume.quantite_disponible),
-            })}
-          </DialogDescription>
-        </DialogHeader>
+    <SideSheet
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={resume.designation}
+      description={t("stock.dialog_detail.description", {
+        code: resume.code_produit,
+        phys: formatNombre(resume.quantite_physique),
+        resa: formatNombre(resume.quantite_reservee),
+        dispo: formatNombre(resume.quantite_disponible),
+      })}
+    >
 
         <section>
           <h3 className="mb-2 text-sm font-medium">{t("stock.dialog_detail.section_repartition")}</h3>
@@ -104,7 +100,6 @@ export function DetailProduitDialog({ resume, onClose }: { resume: ResumeStock; 
             </ul>
           </section>
         )}
-      </DialogContent>
-    </Dialog>
+    </SideSheet>
   );
 }

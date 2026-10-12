@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { ConfigDialog } from "@/components/produits/config-dialog";
 import { ProduitDialog } from "@/components/produits/produit-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -130,33 +130,26 @@ function CatalogueTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="produits.catalogue.vide"
-        actions={(p) => (
-          <>
-            {can("produit.update") && (
-              <Button variant="ghost" size="icon" title={t("produits.catalogue.act_modifier")} aria-label={t("produits.catalogue.act_modifier")} onClick={() => setEdition({ mode: "edit", item: p })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("produit.delete") && (
-              <Button variant="ghost" size="icon" title={t("produits.catalogue.act_supprimer")} aria-label={t("produits.catalogue.act_supprimer")} onClick={() => setASupprimer(p)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(p) => [
+          ...(can("produit.update")
+            ? [{ key: "modifier", label: t("produits.catalogue.act_modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: p }) }]
+            : []),
+          ...(can("produit.delete")
+            ? [{ key: "supprimer", label: t("produits.catalogue.act_supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(p) }]
+            : []),
+        ]}
       />
 
       {edition && (
         <ProduitDialog produit={edition.mode === "edit" ? edition.item : null} onClose={() => setEdition(null)} />
       )}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("produits.catalogue.confirm_suppr_titre")}
         description={t("produits.catalogue.confirm_suppr_desc", { designation: aSupprimer?.designation ?? "" })}
         confirmLabel={t("produits.catalogue.confirm_suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />
@@ -222,33 +215,26 @@ function SeriesTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="produits.series.vide"
-        actions={(c) => (
-          <>
-            {can("config_serie.update") && (
-              <Button variant="ghost" size="icon" title={t("produits.series.act_modifier_prefixe")} aria-label={t("produits.series.act_modifier_prefixe")} onClick={() => setEdition({ mode: "edit", item: c })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("config_serie.delete") && (
-              <Button variant="ghost" size="icon" title={t("produits.series.act_supprimer")} aria-label={t("produits.series.act_supprimer")} onClick={() => setASupprimer(c)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(c) => [
+          ...(can("config_serie.update")
+            ? [{ key: "modifier", label: t("produits.series.act_modifier_prefixe"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: c }) }]
+            : []),
+          ...(can("config_serie.delete")
+            ? [{ key: "supprimer", label: t("produits.series.act_supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(c) }]
+            : []),
+        ]}
       />
 
       {edition && (
         <ConfigDialog config={edition.mode === "edit" ? edition.item : null} onClose={() => setEdition(null)} />
       )}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("produits.series.confirm_suppr_titre")}
         description={t("produits.series.confirm_suppr_desc", { n: aSupprimer?.id_config ?? "" })}
         confirmLabel={t("produits.series.confirm_suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

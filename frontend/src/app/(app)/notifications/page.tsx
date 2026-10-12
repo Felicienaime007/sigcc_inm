@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -137,17 +137,17 @@ function Liste() {
         actions={(n) => (
           <>
             {n.lien && (
-              <Button variant="ghost" size="icon" title={t("notif.page.ouvrir")} onClick={() => void ouvrir(n)}>
+              <Button variant="ghost" size="icon" title={t("notif.page.ouvrir")} aria-label={t("notif.page.ouvrir")} onClick={() => void ouvrir(n)}>
                 <ExternalLink className="h-4 w-4" />
               </Button>
             )}
             {!n.lu && (
-              <Button variant="ghost" size="icon" title={t("notif.page.marquer_lue")} onClick={() => void marquerLue(qc, n.id_notification)}>
+              <Button variant="ghost" size="icon" title={t("notif.page.marquer_lue")} aria-label={t("notif.page.marquer_lue")} onClick={() => void marquerLue(qc, n.id_notification)}>
                 <Check className="h-4 w-4" />
               </Button>
             )}
             <Button
-              variant="ghost" size="icon" title={t("notif.page.supprimer")}
+              variant="ghost" size="icon" title={t("notif.page.supprimer")} aria-label={t("notif.page.supprimer")}
               onClick={() => crud.remove.mutate(n.id_notification, { onSuccess: () => rafraichir(qc) })}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
@@ -177,8 +177,15 @@ function Preferences() {
     queryKey: ["notifications/preferences"],
     queryFn: async () => (await api.get<TypePreference[]>("/notifications/preferences/")).data,
   });
-  const [son, setSonEtat] = useState(sonActif);
-  const [bureau, setBureauEtat] = useState(bureauActif);
+  const [son, setSonEtat] = useState(false);
+  const [bureau, setBureauEtat] = useState(false);
+
+  // Réglages mémorisés lus après montage (premier rendu identique au SSR).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSonEtat(sonActif());
+    setBureauEtat(bureauActif());
+  }, []);
 
   async function basculer(type: string, active: boolean) {
     try {

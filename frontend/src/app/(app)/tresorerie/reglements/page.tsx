@@ -6,7 +6,6 @@ import { Banknote, Landmark, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { RequirePrivilege } from "@/components/can";
 import { PageHeader } from "@/components/page-header";
 import { Kbd } from "@/components/kbd";
@@ -17,8 +16,7 @@ import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ReglementDialog } from "@/components/data/tresorie/reglement-dialog";
 import { ImprimerButton } from "@/components/editions/imprimer-button";
-import { Field } from "@/components/forms/field";
-import { FormDialog } from "@/components/forms/form-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { getErrorMessage } from "@/lib/errors";
@@ -170,17 +168,15 @@ function Historique() {
   const liste = usePagedList<Reglement>("tresorerie/reglements", { ordering: "-date_reglement" });
   const annuler = useRecordAction("tresorerie/reglements", "annuler", t("tresorerie.reglements.ok_annulation"));
   const [aAnnuler, setAAnnuler] = useState<Reglement | null>(null);
-  const [motif, setMotif] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
 
-  async function confirmerAnnulation() {
+  async function confirmerAnnulation(motif: string) {
     if (!aAnnuler) return;
     setErreur(null);
     if (!motif.trim()) return setErreur(t("tresorerie.reglements.err_motif"));
     try {
       await annuler.mutateAsync({ id: aAnnuler.id_reglement, body: { motif: motif.trim() } });
       setAAnnuler(null);
-      setMotif("");
     } catch (e) {
       setErreur(getErrorMessage(e));
     }
@@ -256,38 +252,30 @@ function Historique() {
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="tresorerie.reglements.vide_hist"
         actions={(r) => (
-          <>
-            <ImprimerButton icone chemin={`reglement/${r.id_reglement}`} libelle={t("tresorerie.reglements.imprimer_recu")} />
-            {can("reglement.annuler") && r.statut === "ACTIF" && (
-              <Button
-                variant="ghost" size="icon" title={t("tresorerie.reglements.action_contrepasser")} aria-label={t("tresorerie.reglements.action_contrepasser")}
-                onClick={() => { setMotif(""); setErreur(null); setAAnnuler(r); }}
-              >
-                <Undo2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
+          <ImprimerButton icone chemin={`reglement/${r.id_reglement}`} libelle={t("tresorerie.reglements.imprimer_recu")} />
         )}
+        rowActions={(r) =>
+          can("reglement.annuler") && r.statut === "ACTIF"
+            ? [{ key: "contrepasser", label: t("tresorerie.reglements.action_contrepasser"), icon: Undo2, danger: true, onSelect: () => { setErreur(null); setAAnnuler(r); } }]
+            : []
+        }
       />
 
-      <FormDialog
+      <DangerConfirm
         open={aAnnuler !== null}
         onOpenChange={(o) => !o && setAAnnuler(null)}
         title={t("tresorerie.reglements.contre_titre", { montant: aAnnuler ? formatAr(aAnnuler.montant_regle) : "" })}
         description={t("tresorerie.reglements.contre_desc")}
-        onSubmit={(e) => { e?.preventDefault(); void confirmerAnnulation(); }}
-        submitting={annuler.isPending}
+        effetFinancier={aAnnuler ? t("tresorerie.reglements.contre_effet", { montant: formatAr(aAnnuler.montant_regle), facture: aAnnuler.num_facture }) : undefined}
+        requireText={aAnnuler?.num_facture ?? undefined}
+        motifLabel={t("tresorerie.reglements.champ_motif")}
+        motifPlaceholder={t("tresorerie.reglements.ph_motif")}
+        motifRequired
+        confirmLabel={t("tresorerie.reglements.contre_submit")}
+        loading={annuler.isPending}
         error={erreur}
-        submitLabel={t("tresorerie.reglements.contre_submit")}
-      >
-        <Field label={t("tresorerie.reglements.champ_motif")} htmlFor="motif_annulation">
-          <Textarea
-            id="motif_annulation" autoFocus rows={3}
-            value={motif} onChange={(e) => setMotif(e.target.value)}
-            placeholder={t("tresorerie.reglements.ph_motif")}
-          />
-        </Field>
-      </FormDialog>
+        onConfirm={(motif) => void confirmerAnnulation(motif)}
+      />
     </div>
   );
 }

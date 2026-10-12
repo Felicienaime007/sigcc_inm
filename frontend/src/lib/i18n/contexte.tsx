@@ -41,14 +41,25 @@ const Contexte = createContext<ValeurContexte>({
   t: (chemin: string) => chemin,
 });
 
-function lireInitiale(): Langue {
-  if (typeof window === "undefined") return "fr";
-  const v = window.localStorage.getItem(CLE);
-  return v === "en" || v === "mg" ? v : "fr";
+function lireStockee(): Langue {
+  try {
+    const v = window.localStorage.getItem(CLE);
+    return v === "en" || v === "mg" ? v : "fr";
+  } catch {
+    return "fr";
+  }
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [langue, setLangue] = useState<Langue>(lireInitiale);
+  // Toujours "fr" au premier rendu (identique au SSR : pas d'erreur d'hydratation),
+  // la langue mémorisée est appliquée juste après le montage.
+  const [langue, setLangue] = useState<Langue>("fr");
+
+  useEffect(() => {
+    const stockee = lireStockee();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stockee !== "fr") setLangue(stockee);
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = langue;

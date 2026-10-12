@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { RequirePrivilege } from "@/components/can";
 import { StatusBadge } from "@/components/data/status-badge";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { NiveauSteps } from "@/components/recouvrement/niveau-badge";
@@ -317,13 +317,13 @@ function Contenu() {
           />
         </Field>
       </FormDialog>
-      <ConfirmDialog
+      <DangerConfirm
         open={dialogue === "supprimer"}
         onOpenChange={(o) => !o && setDialogue(null)}
         title={t("recouvrement.detail.suppr_titre")}
         description={t("recouvrement.detail.suppr_desc")}
+        requireText={dossier.num_dossier}
         confirmLabel={t("recouvrement.detail.supprimer_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

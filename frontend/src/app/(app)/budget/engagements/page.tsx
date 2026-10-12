@@ -11,7 +11,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { anneeCourante } from "@/lib/dates";
@@ -145,23 +145,21 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="budget.enga.vide"
-        actions={(e) =>
-          e.statut_engagement === "VISE" && can("engagement.update") ? (
-            <>
-              <Button variant="ghost" size="icon" title={t("budget.enga.corriger")} aria-label={t("budget.enga.corriger")} onClick={() => setEdition({ mode: "edit", item: e })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost" size="icon"
-                title={e.id_commande ? t("budget.enga.rattache_hint") : t("budget.enga.annuler")}
-                aria-label={e.id_commande ? t("budget.enga.rattache_hint") : t("budget.enga.annuler")}
-                disabled={e.id_commande != null}
-                onClick={() => setAAnnuler(e)}
-              >
-                <Ban className="h-4 w-4 text-destructive" />
-              </Button>
-            </>
-          ) : null
+        rowActions={(e) =>
+          e.statut_engagement === "VISE" && can("engagement.update")
+            ? [
+                { key: "corriger", label: t("budget.enga.corriger"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: e }) },
+                {
+                  key: "annuler",
+                  label: t("budget.enga.annuler"),
+                  icon: Ban,
+                  danger: true,
+                  disabled: e.id_commande != null,
+                  disabledReason: e.id_commande != null ? t("budget.enga.rattache_hint") : undefined,
+                  onSelect: () => setAAnnuler(e),
+                },
+              ]
+            : []
         }
       />
 
@@ -169,7 +167,7 @@ function Contenu() {
         <EngagementDialog engagement={edition.mode === "edit" ? edition.item : null} onClose={() => setEdition(null)} />
       )}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aAnnuler !== null}
         onOpenChange={(o) => !o && setAAnnuler(null)}
         title={t("budget.enga.annuler_titre")}
@@ -178,8 +176,9 @@ function Contenu() {
           montant: formatAr(aAnnuler?.montant_engage),
           code: aAnnuler?.code_article ?? "",
         })}
+        effetFinancier={aAnnuler ? t("budget.enga.annuler_effet", { montant: formatAr(aAnnuler.montant_engage), code: aAnnuler.code_article }) : undefined}
+        requireText={aAnnuler?.num_engagement_cf ?? undefined}
         confirmLabel={t("budget.enga.annuler_btn")}
-        destructive
         loading={annuler.isPending}
         onConfirm={confirmerAnnulation}
       />

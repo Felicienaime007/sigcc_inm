@@ -15,6 +15,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { ImprimerButton } from "@/components/editions/imprimer-button";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
@@ -118,31 +119,23 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="commercial.devis.vide"
-        actions={(d) => {
+        actions={(d) => (
+          <ImprimerButton icone chemin={`devis/${d.id_devis}`} libelle={t("commercial.devis.imprimer")} />
+        )}
+        rowActions={(d) => {
           const modifiable = !d.id_commande;
-          return (
-            <>
-              <ImprimerButton icone chemin={`devis/${d.id_devis}`} libelle={t("commercial.devis.imprimer")} />
-              <Button variant="ghost" size="icon" title={t("commercial.devis.detail")} aria-label={t("commercial.devis.detail")} onClick={() => setDetail(d)}>
-                <Eye className="h-4 w-4" />
-              </Button>
-              {modifiable && !d.est_expire && can("commande.create") && (
-                <Button variant="ghost" size="icon" title={t("commercial.devis.creer_commande")} aria-label={t("commercial.devis.creer_commande")} onClick={() => setCommandeDe(d)}>
-                  <FilePlus2 className="h-4 w-4" />
-                </Button>
-              )}
-              {modifiable && can("devis.update") && (
-                <Button variant="ghost" size="icon" title={t("commercial.devis.modifier")} aria-label={t("commercial.devis.modifier")} onClick={() => setEdition({ mode: "edit", item: d })}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
-              {modifiable && can("devis.delete") && (
-                <Button variant="ghost" size="icon" title={t("commercial.devis.supprimer")} aria-label={t("commercial.devis.supprimer")} onClick={() => setASupprimer(d)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              )}
-            </>
-          );
+          return [
+            { key: "detail", label: t("commercial.devis.detail"), icon: Eye, onSelect: () => setDetail(d) },
+            ...(modifiable && !d.est_expire && can("commande.create")
+              ? [{ key: "commande", label: t("commercial.devis.creer_commande"), icon: FilePlus2, onSelect: () => setCommandeDe(d) }]
+              : []),
+            ...(modifiable && can("devis.update")
+              ? [{ key: "modifier", label: t("commercial.devis.modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: d }) }]
+              : []),
+            ...(modifiable && can("devis.delete")
+              ? [{ key: "supprimer", label: t("commercial.devis.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(d) }]
+              : []),
+          ];
         }}
       />
 
@@ -173,13 +166,13 @@ function Contenu() {
         />
       )}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("commercial.devis.confirm_titre")}
         description={t("commercial.devis.confirm_desc", { x: aSupprimer?.num_devis ?? "" })}
+        requireText={aSupprimer?.num_devis ?? undefined}
         confirmLabel={t("commercial.devis.confirm_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

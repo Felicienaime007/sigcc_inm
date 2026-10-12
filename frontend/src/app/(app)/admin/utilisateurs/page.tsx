@@ -17,7 +17,8 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
+import { PasswordInput } from "@/components/forms/password-input";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -253,27 +254,19 @@ function Contenu() {
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
         emptyMessage="admin.utilisateurs.vide"
-        actions={(u) => (
-          <>
-            {can("utilisateur.update") && (
-              <>
-                <Button variant="ghost" size="icon" title={t("commun.modifier")} aria-label={t("commun.modifier")} onClick={() => ouvrirEdition(u)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                {u.id_utilisateur !== moi?.id_utilisateur && (
-                  <Button variant="ghost" size="icon" title={t("admin.utilisateurs.reset_titre")} aria-label={t("admin.utilisateurs.reset_titre")} onClick={() => ouvrirReinitialisation(u)}>
-                    <KeyRound className="h-4 w-4" />
-                  </Button>
-                )}
-              </>
-            )}
-            {can("utilisateur.delete") && u.id_utilisateur !== moi?.id_utilisateur && (
-              <Button variant="ghost" size="icon" title={t("commun.supprimer")} aria-label={t("commun.supprimer")} onClick={() => setASupprimer(u)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(u) => [
+          ...(can("utilisateur.update")
+            ? [
+                { key: "modifier", label: t("commun.modifier"), icon: Pencil, onSelect: () => ouvrirEdition(u) },
+                ...(u.id_utilisateur !== moi?.id_utilisateur
+                  ? [{ key: "reinitialiser", label: t("admin.utilisateurs.reset_titre"), icon: KeyRound, onSelect: () => ouvrirReinitialisation(u) }]
+                  : []),
+              ]
+            : []),
+          ...(can("utilisateur.delete") && u.id_utilisateur !== moi?.id_utilisateur
+            ? [{ key: "supprimer", label: t("commun.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(u) }]
+            : []),
+        ]}
       />
 
       {/* Création / modification */}
@@ -331,7 +324,7 @@ function Contenu() {
             error={form.formState.errors.password?.message}
             hint={t("admin.utilisateurs.hint_mdp")}
           >
-            <Input id="password" type="password" autoComplete="new-password" {...form.register("password")} />
+            <PasswordInput id="password" autoComplete="new-password" {...form.register("password")} />
           </Field>
         )}
 
@@ -372,21 +365,22 @@ function Contenu() {
         error={erreurReset}
         submitLabel={t("admin.utilisateurs.reset_bouton")}
       >
-        <Field label={t("admin.utilisateurs.champ_nouveau_mdp")} htmlFor="new_password" error={formReset.formState.errors.new_password?.message}>
-          <Input id="new_password" type="password" autoComplete="new-password" {...formReset.register("new_password")} />
+        <Field
+          label={t("admin.utilisateurs.champ_nouveau_mdp")} htmlFor="new_password" error={formReset.formState.errors.new_password?.message}
+        >
+          <PasswordInput id="new_password" autoComplete="new-password" {...formReset.register("new_password")} />
         </Field>
         <Field label={t("admin.utilisateurs.champ_confirmation")} htmlFor="confirmation" error={formReset.formState.errors.confirmation?.message}>
-          <Input id="confirmation" type="password" autoComplete="new-password" {...formReset.register("confirmation")} />
+          <PasswordInput id="confirmation" autoComplete="new-password" showStrength={false} {...formReset.register("confirmation")} />
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("admin.utilisateurs.suppr_titre")}
         description={t("admin.utilisateurs.suppr_description", { identifiant: aSupprimer?.identifiant ?? "" })}
         confirmLabel={t("commun.supprimer")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

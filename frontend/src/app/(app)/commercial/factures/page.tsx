@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, Receipt} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { RequirePrivilege } from "@/components/can";
 import { ImprimerButton } from "@/components/editions/imprimer-button";
 import { PageHeader } from "@/components/page-header";
@@ -38,6 +39,7 @@ export default function FacturesPage() {
 function Contenu() {
   const { t } = useT();
   const { can } = useAuth();
+  const router = useRouter();
   // Rafraîchissement automatique : le caissier et la réception voient l'évolution des paiements
   const liste = usePagedList<Facture>("commercial/factures", { ordering: "-date_facture", refetchInterval: 8000 });
 
@@ -154,17 +156,11 @@ function Contenu() {
         onOrderingChange={liste.setOrdering}
         emptyMessage="commercial.factures.vide"
         actions={(f) => (
-          <>
-            <ImprimerButton icone chemin={`facture/${f.id_facture}`} libelle={t("commercial.factures.imprimer")} />
-            <Link
-              href={`/commercial/factures/${f.id_facture}`}
-              className={buttonVariants({ variant: "ghost", size: "icon" })}
-              title={t("commercial.factures.voir")}
-            >
-              <Eye className="h-4 w-4" />
-            </Link>
-          </>
+          <ImprimerButton icone chemin={`facture/${f.id_facture}`} libelle={t("commercial.factures.imprimer")} />
         )}
+        rowActions={(f) => [
+          { key: "voir", label: t("commercial.factures.voir"), icon: Eye, onSelect: () => router.push(`/commercial/factures/${f.id_facture}`) },
+        ]}
       />
 
       <FormDialog

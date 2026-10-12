@@ -12,6 +12,7 @@ import { RemoteSelect } from "@/components/data/remote-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -132,30 +133,18 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="commercial.preparations.vide"
-        actions={(p) => (
-          <>
-            <Button variant="ghost" size="icon" title={t("commercial.preparations.detail")} aria-label={t("commercial.preparations.detail")} onClick={() => setDetail(p)}>
-              <Eye className="h-4 w-4" />
-            </Button>
-            {can("preparation.update") && p.statut_prepa === "EN_COURS" && (
-              <>
-                <Button variant="ghost" size="icon" title={t("commercial.preparations.reserver")} aria-label={t("commercial.preparations.reserver")} disabled={reserver.isPending}
-                  onClick={() => agir("reserver", p.id_preparation)}>
-                  <PackagePlus className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" title={t("commercial.preparations.terminer_titre_long")} aria-label={t("commercial.preparations.terminer")} disabled={terminer.isPending}
-                  onClick={() => agir("terminer", p.id_preparation)}>
-                  <CheckCheck className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            {can("preparation.delete") && p.statut_prepa !== "LIVREE" && (
-              <Button variant="ghost" size="icon" title={t("commercial.preparations.supprimer")} aria-label={t("commercial.preparations.supprimer")} onClick={() => setASupprimer(p)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(p) => [
+          { key: "detail", label: t("commercial.preparations.detail"), icon: Eye, onSelect: () => setDetail(p) },
+          ...(can("preparation.update") && p.statut_prepa === "EN_COURS"
+            ? [
+                { key: "reserver", label: t("commercial.preparations.reserver"), icon: PackagePlus, disabled: reserver.isPending, onSelect: () => agir("reserver", p.id_preparation) },
+                { key: "terminer", label: t("commercial.preparations.terminer"), icon: CheckCheck, disabled: terminer.isPending, onSelect: () => agir("terminer", p.id_preparation) },
+              ]
+            : []),
+          ...(can("preparation.delete") && p.statut_prepa !== "LIVREE"
+            ? [{ key: "supprimer", label: t("commercial.preparations.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(p) }]
+            : []),
+        ]}
       />
 
       {detail && (
@@ -194,13 +183,12 @@ function Contenu() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("commercial.preparations.confirm_titre")}
         description={t("commercial.preparations.confirm_desc")}
         confirmLabel={t("commercial.preparations.confirm_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

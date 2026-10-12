@@ -1,6 +1,7 @@
 "use client";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/contexte";
 
 const TOUS = "__tous__";
@@ -22,13 +23,20 @@ export function FilterSelect({
 }) {
   const { t } = useT();
   const tous = t("commun.tous", { label });
+  const actif = value !== "";
   return (
     <Select
       value={value || TOUS}
       onValueChange={(v) => onChange(v === null || v === TOUS ? "" : v)}
       items={{ [TOUS]: tous, ...Object.fromEntries(options.map((o) => [o.value, o.label])) }}
     >
-      <SelectTrigger className={className}>
+      <SelectTrigger
+        className={cn(
+          className,
+          "bg-muted/40 shadow-xs",
+          actif && "border-primary/50 bg-primary/[0.07] text-foreground",
+        )}
+      >
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>

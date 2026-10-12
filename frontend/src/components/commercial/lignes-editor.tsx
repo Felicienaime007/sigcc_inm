@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/forms/amount-input";
+import { RowActions } from "@/components/data/row-actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { versNombre } from "@/lib/clients";
@@ -156,10 +158,11 @@ export function LignesEditor({
                   </TableCell>
                   {avecPrix && (
                     <TableCell>
-                      <Input
-                        inputMode="decimal" className="text-right" value={l.prix}
+                      <AmountInput
+                        value={l.prix.trim() === "" ? null : versNombre(l.prix)}
+                        onChange={(v) => onChange(lignes.map((x) => (x === l ? { ...x, prix: v === null ? "" : String(v) } : x)))}
+                        aria-label={t("commercial.editeur.col_pu")}
                         aria-invalid={!Number.isFinite(versNombre(l.prix))}
-                        onChange={(e) => onChange(lignes.map((x) => (x === l ? { ...x, prix: e.target.value } : x)))}
                       />
                     </TableCell>
                   )}
@@ -169,10 +172,9 @@ export function LignesEditor({
                     </TableCell>
                   )}
                   <TableCell>
-                    <Button type="button" variant="ghost" size="icon" title={t("commercial.editeur.retirer")} aria-label={t("commercial.editeur.retirer")}
-                      onClick={() => onChange(lignes.filter((x) => x !== l))}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <RowActions
+                      items={[{ key: "retirer", label: t("commercial.editeur.retirer"), icon: Trash2, danger: true, onSelect: () => onChange(lignes.filter((x) => x !== l)) }]}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

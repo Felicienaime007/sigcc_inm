@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RequirePrivilege } from "@/components/can";
 import { PageHeader } from "@/components/page-header";
@@ -132,11 +131,9 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="audit.page.vide"
-        actions={(e) => (
-          <Button variant="ghost" size="icon" title={t("audit.page.voir_detail")} aria-label={t("audit.page.voir_detail")} onClick={() => setDetail(e)}>
-            <Eye className="h-4 w-4" />
-          </Button>
-        )}
+        rowActions={(e) => [
+          { key: "detail", label: t("audit.page.voir_detail"), icon: Eye, onSelect: () => setDetail(e) },
+        ]}
       />
 
       {detail && <EntryDialog entry={detail} onClose={() => setDetail(null)} />}

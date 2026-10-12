@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RemoteSelect } from "@/components/data/remote-select";
 import { Field } from "@/components/forms/field";
+import { AmountInput } from "@/components/forms/amount-input";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -176,7 +177,19 @@ export function ProduitDialog({ produit, onClose }: { produit: ProduitCatalogue 
           label={t("produits.dialog_produit.champ_prix")} htmlFor="prix" error={erreurs.prix?.message}
           hint={produit ? t("produits.dialog_produit.hint_prix") : undefined}
         >
-          <Input id="prix" inputMode="decimal" {...form.register("prix")} />
+          <Controller
+            control={form.control}
+            name="prix"
+            render={({ field }) => (
+              <AmountInput
+                id="prix"
+                value={field.value.trim() === "" ? null : versNombre(field.value)}
+                onChange={(v) => field.onChange(v === null ? "" : String(v))}
+                onBlur={field.onBlur}
+                name={field.name}
+              />
+            )}
+          />
         </Field>
         <Field
           label={t("produits.dialog_produit.champ_seuil")} htmlFor="seuil" error={erreurs.seuil?.message}

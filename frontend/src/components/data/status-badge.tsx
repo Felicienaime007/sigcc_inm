@@ -3,12 +3,12 @@ import { useT } from "@/lib/i18n/contexte";
 
 type Ton = "succes" | "attention" | "danger" | "info" | "neutre";
 
-const STYLES: Record<Ton, string> = {
-  succes: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  attention: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  danger: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  info: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  neutre: "bg-muted text-muted-foreground",
+const STYLES: Record<Ton, { badge: string; dot: string }> = {
+  succes: { badge: "bg-green-500/10 text-green-700 ring-green-600/20 dark:bg-green-500/15 dark:text-green-400 dark:ring-green-400/20", dot: "bg-green-500" },
+  attention: { badge: "bg-amber-500/10 text-amber-800 ring-amber-600/25 dark:bg-amber-500/15 dark:text-amber-400 dark:ring-amber-400/25", dot: "bg-amber-500" },
+  danger: { badge: "bg-red-500/10 text-red-700 ring-red-600/20 dark:bg-red-500/15 dark:text-red-400 dark:ring-red-400/25", dot: "bg-red-500" },
+  info: { badge: "bg-blue-500/10 text-blue-700 ring-blue-600/20 dark:bg-blue-500/15 dark:text-blue-400 dark:ring-blue-400/25", dot: "bg-blue-500" },
+  neutre: { badge: "bg-muted text-muted-foreground ring-border", dot: "bg-muted-foreground/50" },
 };
 
 const TONS: Record<string, Ton> = {
@@ -45,14 +45,16 @@ function libelle(statut: string, t: (c: string) => string) {
 
 export function StatusBadge({ statut, className }: { statut: string; className?: string }) {
   const { t } = useT();
+  const style = STYLES[TONS[statut] ?? "neutre"];
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        STYLES[TONS[statut] ?? "neutre"],
+        "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset",
+        style.badge,
         className,
       )}
     >
+      <span aria-hidden className={cn("h-1.5 w-1.5 shrink-0 rounded-full", style.dot)} />
       {libelle(statut, t)}
     </span>
   );

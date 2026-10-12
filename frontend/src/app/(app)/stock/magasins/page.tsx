@@ -14,7 +14,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { RemoteSelect } from "@/components/data/remote-select";
 import { SearchInput } from "@/components/data/search-input";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -127,20 +127,14 @@ function MagasinsTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="stock.magasins.vide"
-        actions={(m) => (
-          <>
-            {can("magasin.update") && (
-              <Button variant="ghost" size="icon" title={t("stock.magasins.act_modifier")} aria-label={t("stock.magasins.act_modifier")} onClick={() => setEdition({ mode: "edit", item: m })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("magasin.delete") && (
-              <Button variant="ghost" size="icon" title={t("stock.magasins.act_supprimer")} aria-label={t("stock.magasins.act_supprimer")} onClick={() => setASupprimer(m)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(m) => [
+          ...(can("magasin.update")
+            ? [{ key: "modifier", label: t("stock.magasins.act_modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: m }) }]
+            : []),
+          ...(can("magasin.delete")
+            ? [{ key: "supprimer", label: t("stock.magasins.act_supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(m) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -159,13 +153,12 @@ function MagasinsTab() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("stock.magasins.confirm_suppr_titre")}
         description={t("stock.magasins.confirm_suppr_desc", { nom: aSupprimer?.nom_magasin ?? "" })}
         confirmLabel={t("stock.magasins.confirm_suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />
@@ -265,20 +258,14 @@ function EmplacementsTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="stock.emplacements.vide"
-        actions={(e) => (
-          <>
-            {can("emplacement.update") && (
-              <Button variant="ghost" size="icon" title={t("stock.emplacements.act_modifier")} aria-label={t("stock.emplacements.act_modifier")} onClick={() => setEdition({ mode: "edit", item: e })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("emplacement.delete") && (
-              <Button variant="ghost" size="icon" title={t("stock.emplacements.act_supprimer")} aria-label={t("stock.emplacements.act_supprimer")} onClick={() => setASupprimer(e)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(e) => [
+          ...(can("emplacement.update")
+            ? [{ key: "modifier", label: t("stock.emplacements.act_modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: e }) }]
+            : []),
+          ...(can("emplacement.delete")
+            ? [{ key: "supprimer", label: t("stock.emplacements.act_supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(e) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -316,13 +303,12 @@ function EmplacementsTab() {
         </div>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("stock.emplacements.confirm_suppr_titre")}
         description={t("stock.emplacements.confirm_suppr_desc", { depot: aSupprimer?.code_depot ?? "", allee: aSupprimer?.code_allee ?? "", etagere: aSupprimer?.code_etagere ?? "" })}
         confirmLabel={t("stock.emplacements.confirm_suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

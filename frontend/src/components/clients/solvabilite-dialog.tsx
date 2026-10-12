@@ -6,6 +6,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/forms/amount-input";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { versNombre } from "@/lib/clients";
@@ -115,7 +116,19 @@ export function SolvabiliteDialog({
         error={erreurs.plafond_encours?.message}
         hint={t("clients.svdlg.plafond_hint")}
       >
-        <Input id="plafond_encours" inputMode="decimal" {...form.register("plafond_encours")} />
+        <Controller
+          control={form.control}
+          name="plafond_encours"
+          render={({ field }) => (
+            <AmountInput
+              id="plafond_encours"
+              value={field.value.trim() === "" ? null : versNombre(field.value)}
+              onChange={(v) => field.onChange(v === null ? "" : String(v))}
+              onBlur={field.onBlur}
+              name={field.name}
+            />
+          )}
+        />
       </Field>
       <Controller
         control={form.control}

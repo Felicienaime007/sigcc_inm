@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/page-header";
 import { PrivilegePicker } from "@/components/admin/privilege-picker";
 import { DataTable, type Column } from "@/components/data/data-table";
 import { SearchInput } from "@/components/data/search-input";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -155,22 +155,17 @@ function Contenu() {
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
         emptyMessage="admin.roles.vide"
-        actions={(r) =>
-          r.libelle_role === "ADMIN" ? null : (
-            <>
-              {can("role.update") && (
-                <Button variant="ghost" size="icon" title={t("commun.modifier")} aria-label={t("commun.modifier")} onClick={() => ouvrirEdition(r)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
-              {can("role.delete") && (
-                <Button variant="ghost" size="icon" title={t("commun.supprimer")} aria-label={t("commun.supprimer")} onClick={() => setASupprimer(r)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              )}
-            </>
-          )
-        }
+        rowActions={(r) => {
+          if (r.libelle_role === "ADMIN") return [];
+          return [
+            ...(can("role.update")
+              ? [{ key: "modifier", label: t("commun.modifier"), icon: Pencil, onSelect: () => ouvrirEdition(r) }]
+              : []),
+            ...(can("role.delete")
+              ? [{ key: "supprimer", label: t("commun.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(r) }]
+              : []),
+          ];
+        }}
       />
 
       <FormDialog
@@ -206,13 +201,12 @@ function Contenu() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("admin.roles.suppr_titre")}
         description={t("admin.roles.suppr_description", { role: aSupprimer?.libelle_role ?? "" })}
         confirmLabel={t("commun.supprimer")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

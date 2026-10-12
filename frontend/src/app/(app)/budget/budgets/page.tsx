@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RequirePrivilege } from "@/components/can";
@@ -15,7 +16,7 @@ import { BudgetDialog } from "@/components/budget/budget-dialog";
 import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -65,6 +66,7 @@ type Edition = { mode: "create" } | { mode: "edit"; item: Budget } | null;
 function BudgetsTab() {
   const { can } = useAuth();
   const { t } = useT();
+  const router = useRouter();
   const liste = usePagedList<Budget>("budget/budgets", { ordering: "-annee_budgetaire" });
   const crud = useCrud<Budget>("budget/budgets");
   const { data: organismes } = useOptions<Organisme>("clients/organismes", {}, can("organisme.view"));
@@ -138,34 +140,27 @@ function BudgetsTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="budget.budgets.vide"
-        actions={(b) => (
-          <>
-            <Link href={`/budget/budgets/${b.id_budget}`} className={buttonVariants({ variant: "ghost", size: "icon" })} title={t("budget.budgets.ouvrir")}><Eye className="h-4 w-4" /></Link>
-            {can("budget.update") && (
-              <Button variant="ghost" size="icon" title={t("budget.budgets.modifier")} aria-label={t("budget.budgets.modifier")} onClick={() => setEdition({ mode: "edit", item: b })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("budget.delete") && (
-              <Button variant="ghost" size="icon" title={t("budget.budgets.supprimer")} aria-label={t("budget.budgets.supprimer")} onClick={() => setASupprimer(b)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(b) => [
+          { key: "ouvrir", label: t("budget.budgets.ouvrir"), icon: Eye, onSelect: () => router.push(`/budget/budgets/${b.id_budget}`) },
+          ...(can("budget.update")
+            ? [{ key: "modifier", label: t("budget.budgets.modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: b }) }]
+            : []),
+          ...(can("budget.delete")
+            ? [{ key: "supprimer", label: t("budget.budgets.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(b) }]
+            : []),
+        ]}
       />
 
       {edition && (
         <BudgetDialog budget={edition.mode === "edit" ? edition.item : null} onClose={() => setEdition(null)} />
       )}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("budget.budgets.suppr_titre")}
         description={t("budget.budgets.suppr_desc", { annee: aSupprimer?.annee_budgetaire ?? "", org: aSupprimer?.nom_organisme ?? "" })}
         confirmLabel={t("budget.budgets.supprimer_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />
@@ -248,20 +243,14 @@ function TypesTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="budget.types.vide"
-        actions={(tf) => (
-          <>
-            {can("type_financement.update") && (
-              <Button variant="ghost" size="icon" title={t("budget.types.modifier")} aria-label={t("budget.types.modifier")} onClick={() => setEdition({ mode: "edit", item: tf })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("type_financement.delete") && (
-              <Button variant="ghost" size="icon" title={t("budget.types.supprimer")} aria-label={t("budget.types.supprimer")} onClick={() => setASupprimer(tf)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(tf) => [
+          ...(can("type_financement.update")
+            ? [{ key: "modifier", label: t("budget.types.modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: tf }) }]
+            : []),
+          ...(can("type_financement.delete")
+            ? [{ key: "supprimer", label: t("budget.types.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(tf) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -278,13 +267,12 @@ function TypesTab() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("budget.types.suppr_titre")}
         description={t("budget.types.suppr_desc", { nom: aSupprimer?.libelle_financement ?? "" })}
         confirmLabel={t("budget.types.supprimer_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

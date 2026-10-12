@@ -117,6 +117,7 @@ export const tresorerieFr: Dict = {
       valider_titre: "Valider l'arrêté ?",
       valider_desc: "La journée du {date} ({caisse}) sera figée : encaissements, opérations et remboursements antidatés seront refusés. Irréversible.",
       valider_btn: "Valider l'arrêté",
+      valider_effet: "Effet financier : la journée du {date} ({caisse}) sera clôturée pour {montant} comptés.",
       valider_ok: "Journée arrêtée et figée.",
     },
     remises: {
@@ -189,6 +190,7 @@ export const tresorerieFr: Dict = {
       contre_titre: "Contre-passer le règlement de {montant}",
       contre_desc: "Le règlement est conservé mais neutralisé : une sortie compensatoire est créée et le reste à payer de la facture remonte. La quittance passe à « Annulée » (volet non réutilisable) et le reçu réimprimé porte la mention d'annulation.",
       contre_submit: "Contre-passer",
+      contre_effet: "Effet financier : {montant} restitués au restant à payer de la facture {facture}.",
       champ_motif: "Motif d'annulation",
       ph_motif: "Ex. montant saisi deux fois, mauvaise facture…",
       err_motif: "Le motif d'annulation est obligatoire.",
@@ -239,6 +241,11 @@ export const tresorerieFr: Dict = {
     reglement: {
       titre_virement: "Enregistrer un virement du Trésor",
       titre_caisse: "Encaisser une facture",
+      etape_montant: "Montant",
+      etape_caisse: "Caisse",
+      etape_quittance: "Quittance",
+      etape_reference: "Référence",
+      err_etape: "Vérifiez les champs de cette étape.",
       submit_virement: "Enregistrer le virement",
       submit_caisse: "Valider l'encaissement",
       reste: "Reste à payer",

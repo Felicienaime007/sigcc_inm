@@ -13,7 +13,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { SearchInput } from "@/components/data/search-input";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { useT } from "@/lib/i18n/contexte";
@@ -147,20 +147,14 @@ function Contenu() {
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
         emptyMessage="produits.categories.vide"
-        actions={(c) => (
-          <>
-            {can("categorie.update") && (
-              <Button variant="ghost" size="icon" title={t("produits.categories.act_modifier")} aria-label={t("produits.categories.act_modifier")} onClick={() => ouvrirEdition(c)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("categorie.delete") && (
-              <Button variant="ghost" size="icon" title={t("produits.categories.act_supprimer")} aria-label={t("produits.categories.act_supprimer")} onClick={() => setASupprimer(c)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(c) => [
+          ...(can("categorie.update")
+            ? [{ key: "modifier", label: t("produits.categories.act_modifier"), icon: Pencil, onSelect: () => ouvrirEdition(c) }]
+            : []),
+          ...(can("categorie.delete")
+            ? [{ key: "supprimer", label: t("produits.categories.act_supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(c) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -176,13 +170,12 @@ function Contenu() {
         </Field>
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("produits.categories.confirm_suppr_titre")}
         description={t("produits.categories.confirm_suppr_desc", { libelle: aSupprimer?.libelle_categorie ?? "" })}
         confirmLabel={t("produits.categories.confirm_suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { ChartColumn, TrendingDown, TrendingUp } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatAr, formatCompact, formatNombre } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/contexte";
@@ -86,7 +88,7 @@ export function BarresHorizontales({
 }) {
   const { t } = useT();
   if (items.length === 0 || items.every((i) => i.valeur === 0)) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">{t(vide)}</p>;
+    return <EmptyState icon={ChartColumn} title={t(vide)} compact />;
   }
   const max = Math.max(1, ...items.map((i) => i.valeur));
   return (
@@ -119,10 +121,10 @@ export function Kpi({
   ton?: string;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 text-2xl font-semibold tabular-nums", ton)}>{valeur}</p>
-      {sous && <div className="mt-1 text-xs text-muted-foreground">{sous}</div>}
+    <div className="card-hover rounded-xl border bg-card p-5 shadow-[0_1px_2px_rgb(0_0_0/0.05)]">
+      <p className="text-[11px] font-semibold tracking-[0.04em] text-muted-foreground uppercase">{label}</p>
+      <p className={cn("mt-1 text-[26px] leading-none font-bold tracking-tight tabular-nums", ton)}>{valeur}</p>
+      {sous && <div className="mt-1.5 text-xs text-muted-foreground">{sous}</div>}
     </div>
   );
 }
@@ -133,9 +135,18 @@ export function Variation({ actuel, precedent }: { actuel: number; precedent: nu
   if (precedent <= 0) return <span>{t("stats.charts.sans_reference")}</span>;
   const pct = ((actuel - precedent) / precedent) * 100;
   const hausse = pct >= 0;
+  const Icone = hausse ? TrendingUp : TrendingDown;
   return (
-    <span className={hausse ? "text-green-700" : "text-red-600"}>
-      {hausse ? "▲" : "▼"} {formatNombre(Math.abs(Math.round(pct * 10) / 10))} % vs {t("stats.charts.annee_precedente")}
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums ring-1 ring-inset",
+        hausse
+          ? "bg-green-500/10 text-green-700 ring-green-600/20 dark:text-green-400 dark:ring-green-400/20"
+          : "bg-red-500/10 text-red-700 ring-red-600/20 dark:text-red-400 dark:ring-red-400/20",
+      )}
+    >
+      <Icone className="h-3 w-3" aria-hidden />
+      {formatNombre(Math.abs(Math.round(pct * 10) / 10))} % vs {t("stats.charts.annee_precedente")}
     </span>
   );
 }

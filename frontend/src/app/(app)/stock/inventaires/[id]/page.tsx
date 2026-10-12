@@ -15,6 +15,7 @@ import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { getErrorMessage } from "@/lib/errors";
@@ -218,13 +219,12 @@ function Contenu() {
         loading={valider.isPending}
         onConfirm={() => { valider.mutate({ id: inventaire.id_inventaire }); setDialogue(null); }}
       />
-      <ConfirmDialog
+      <DangerConfirm
         open={dialogue === "annuler"}
         onOpenChange={(o) => !o && setDialogue(null)}
         title={t("stock.inventaire_detail.confirm_annuler_titre")}
         description={t("stock.inventaire_detail.confirm_annuler_desc")}
         confirmLabel={t("stock.inventaire_detail.confirm_annuler_btn")}
-        destructive
         loading={annuler.isPending}
         onConfirm={() => { annuler.mutate({ id: inventaire.id_inventaire }); setDialogue(null); }}
       />

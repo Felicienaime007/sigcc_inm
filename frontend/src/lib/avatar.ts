@@ -41,15 +41,17 @@ export function retirerAvatar(id: number) {
 
 /** Photo de l'utilisateur, réactive aux changements (même onglet ou autre onglet). */
 export function useAvatar(id: number | null | undefined) {
-  // État dérivé de `id` : ajusté pendant le rendu (pattern React documenté),
-  // pas dans un effet — évite les rendus en cascade.
+  // Photo nulle au premier rendu (identique au SSR : pas d'erreur
+  // d'hydratation) ; la photo stockée est lue juste après le montage.
   const [etat, setEtat] = useState<{ id: number | null | undefined; photo: string | null }>(() => ({
     id,
-    photo: lireAvatar(id),
+    photo: null,
   }));
-  if (etat.id !== id) setEtat({ id, photo: lireAvatar(id) });
+  if (etat.id !== id) setEtat({ id, photo: null });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEtat({ id, photo: lireAvatar(id) });
     const rafraichir = (e: Event) => {
       const detail = (e as CustomEvent<{ id?: number }>).detail;
       if (!detail || detail.id === id) setEtat((p) => ({ ...p, photo: lireAvatar(id) }));

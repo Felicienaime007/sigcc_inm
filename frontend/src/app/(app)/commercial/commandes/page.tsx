@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, Plus } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Can, RequirePrivilege } from "@/components/can";
 import { PageHeader } from "@/components/page-header";
 import { CommandeDialog } from "@/components/commercial/commande-dialog";
@@ -110,9 +110,9 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="commercial.commandes.vide"
-        actions={(c) => (
-          <Link href={`/commercial/commandes/${c.id_commande}`} className={buttonVariants({ variant: "ghost", size: "icon" })} title={t("commercial.commandes.ouvrir")}><Eye className="h-4 w-4" /></Link>
-        )}
+        rowActions={(c) => [
+          { key: "ouvrir", label: t("commercial.commandes.ouvrir"), icon: Eye, onSelect: () => router.push(`/commercial/commandes/${c.id_commande}`) },
+        ]}
       />
 
       {creation && (

@@ -24,16 +24,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [user, setUser] = useState<Profil | null>(null);
-  // Pas de token stocké : rien à restaurer, on évite un rendu « chargement » inutile
-  const [loading, setLoading] = useState(
-    () => Boolean(tokenStore.getAccess()) || Boolean(tokenStore.getRefresh()),
-  );
+  // Toujours false au premier rendu (identique au SSR : pas d'erreur
+  // d'hydratation) ; la restauration passe à true dans l'effet ci-dessous.
+  const [loading, setLoading] = useState(false);
 
   // Restauration de la session dans l'onglet courant uniquement
   // (sessionStorage : aucun token après un nouveau lancement → /login).
   useEffect(() => {
     // Sans token dans l'onglet courant : rien à restaurer (`loading` vaut déjà false).
     if (!tokenStore.getAccess() && !tokenStore.getRefresh()) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
     let ignore = false; // garde anti-démontage : pas de setState après unmount
     api
       .get<Profil>("/auth/me/") // si l'access est périmé, l'intercepteur renouvelle puis rejoue

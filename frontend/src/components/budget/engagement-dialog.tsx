@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClientSearch } from "@/components/clients/client-search";
 import { Field } from "@/components/forms/field";
+import { AmountInput } from "@/components/forms/amount-input";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { versNombre } from "@/lib/clients";
 import { aujourdhui } from "@/lib/dates";
@@ -147,7 +148,11 @@ export function EngagementDialog({
           </Field>
 
           <Field label={t("budget.edlg.montant")} htmlFor="montant_engage">
-            <Input id="montant_engage" inputMode="decimal" value={montant} onChange={(e) => setMontant(e.target.value)} />
+            <AmountInput
+              id="montant_engage"
+              value={montant.trim() === "" ? null : versNombre(montant)}
+              onChange={(v) => setMontant(v === null ? "" : String(v))}
+            />
             {ligne && (
               <p className={`mt-1 text-xs ${insuffisant ? "text-destructive" : "text-muted-foreground"}`}>
                 {insuffisant ? (

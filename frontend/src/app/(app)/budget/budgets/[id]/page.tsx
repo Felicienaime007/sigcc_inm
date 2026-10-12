@@ -11,7 +11,8 @@ import { RequirePrivilege } from "@/components/can";
 import { BudgetDialog } from "@/components/budget/budget-dialog";
 import { LigneDialog } from "@/components/budget/ligne-dialog";
 import { PrevisionsDialog } from "@/components/budget/previsions-dialog";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
+import { RowActions } from "@/components/data/row-actions";
 import { useAuth } from "@/lib/auth-context";
 import { getErrorMessage } from "@/lib/errors";
 import { formatAr } from "@/lib/format";
@@ -167,22 +168,20 @@ function Contenu() {
                       <TableCell className="text-right tabular-nums">{formatAr(l.total_engage)}</TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">{formatAr(l.montant_disponible)}</TableCell>
                       <TableCell>
-                        <div className="flex justify-end gap-1">
-                          {can("prevision.view") && (
-                            <Button variant="ghost" size="icon" title={t("budget.detail.previsions")} aria-label={t("budget.detail.previsions")} onClick={() => setDialogue({ type: "previsions", ligne: l })}>
-                              <CalendarRange className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {can("ligne_budgetaire.update") && (
-                            <Button variant="ghost" size="icon" title={t("budget.detail.modifier")} aria-label={t("budget.detail.modifier")} onClick={() => setDialogue({ type: "ligne", ligne: l })}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {can("ligne_budgetaire.delete") && (
-                            <Button variant="ghost" size="icon" title={t("budget.detail.supprimer")} aria-label={t("budget.detail.supprimer")} onClick={() => setASupprimer(l)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
+                        <div className="flex justify-end">
+                          <RowActions
+                            items={[
+                              ...(can("prevision.view")
+                                ? [{ key: "previsions", label: t("budget.detail.previsions"), icon: CalendarRange, onSelect: () => setDialogue({ type: "previsions", ligne: l }) }]
+                                : []),
+                              ...(can("ligne_budgetaire.update")
+                                ? [{ key: "modifier", label: t("budget.detail.modifier"), icon: Pencil, onSelect: () => setDialogue({ type: "ligne", ligne: l }) }]
+                                : []),
+                              ...(can("ligne_budgetaire.delete")
+                                ? [{ key: "supprimer", label: t("budget.detail.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(l) }]
+                                : []),
+                            ]}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -198,13 +197,12 @@ function Contenu() {
       {dialogue?.type === "ligne" && <LigneDialog budget={budget} ligne={dialogue.ligne} onClose={() => setDialogue(null)} />}
       {dialogue?.type === "previsions" && <PrevisionsDialog ligne={dialogue.ligne} onClose={() => setDialogue(null)} />}
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("budget.detail.suppr_titre")}
         description={t("budget.detail.suppr_desc", { code: aSupprimer?.code_article ?? "" })}
         confirmLabel={t("budget.detail.supprimer_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

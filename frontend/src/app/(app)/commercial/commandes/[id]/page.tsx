@@ -12,6 +12,7 @@ import { CommandeDialog } from "@/components/commercial/commande-dialog";
 import { TypeBadge } from "@/components/clients/type-badge";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { useAuth } from "@/lib/auth-context";
 import { estSoa } from "@/lib/clients";
 import { getErrorMessage } from "@/lib/errors";
@@ -230,7 +231,7 @@ function Contenu() {
         loading={valider.isPending}
         onConfirm={() => agir("valider")}
       />
-      <ConfirmDialog
+      <DangerConfirm
         open={dialogue === "annuler"}
         onOpenChange={(o) => !o && setDialogue(null)}
         title={t("commercial.commande_detail.dlg_annuler_titre")}
@@ -239,18 +240,18 @@ function Contenu() {
             ? t("commercial.commande_detail.dlg_annuler_soa")
             : t("commercial.commande_detail.dlg_annuler_defaut")
         }
+        requireText={commande.num_commande}
         confirmLabel={t("commercial.commande_detail.dlg_annuler_btn")}
-        destructive
         loading={annuler.isPending}
         onConfirm={() => agir("annuler")}
       />
-      <ConfirmDialog
+      <DangerConfirm
         open={dialogue === "supprimer"}
         onOpenChange={(o) => !o && setDialogue(null)}
         title={t("commercial.commande_detail.dlg_suppr_titre")}
         description={t("commercial.commande_detail.dlg_suppr_desc")}
+        requireText={commande.num_commande}
         confirmLabel={t("commercial.commande_detail.dlg_suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

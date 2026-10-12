@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/input";
 import { RemoteSelect } from "@/components/data/remote-select";
 import { Field } from "@/components/forms/field";
+import { AmountInput } from "@/components/forms/amount-input";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { versNombre } from "@/lib/clients";
 import { applyServerErrors } from "@/lib/form-utils";
@@ -111,7 +112,20 @@ export function LigneDialog({
             : t("budget.ldlg.montant_hint")
         }
       >
-        <Input id="montant" inputMode="decimal" disabled={verrouille} {...form.register("montant")} />
+        <Controller
+          control={form.control}
+          name="montant"
+          render={({ field }) => (
+            <AmountInput
+              id="montant"
+              value={field.value.trim() === "" ? null : versNombre(field.value)}
+              onChange={(v) => field.onChange(v === null ? "" : String(v))}
+              onBlur={field.onBlur}
+              name={field.name}
+              disabled={verrouille}
+            />
+          )}
+        />
       </Field>
 
       <Field label={t("budget.ldlg.financement")} error={erreurs.type_financement?.message}>

@@ -15,7 +15,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
-import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { usePagedList } from "@/hooks/use-paged-list";
@@ -239,20 +239,14 @@ function CarnetsTab() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="tresorerie.quittances.vide_carnets"
-        actions={(l) => (
-          <>
-            {can("livre_quittance.update") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.caisses.modifier")} aria-label={t("tresorerie.caisses.modifier")} onClick={() => setEdition({ mode: "edit", item: l })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {can("livre_quittance.delete") && (
-              <Button variant="ghost" size="icon" title={t("tresorerie.caisses.supprimer")} aria-label={t("tresorerie.caisses.supprimer")} onClick={() => setASupprimer(l)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(l) => [
+          ...(can("livre_quittance.update")
+            ? [{ key: "modifier", label: t("tresorerie.caisses.modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: l }) }]
+            : []),
+          ...(can("livre_quittance.delete")
+            ? [{ key: "supprimer", label: t("tresorerie.caisses.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(l) }]
+            : []),
+        ]}
       />
 
       <FormDialog
@@ -294,13 +288,13 @@ function CarnetsTab() {
         )}
       </FormDialog>
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("tresorerie.quittances.suppr_titre")}
         description={t("tresorerie.quittances.suppr_desc", { numero: aSupprimer?.numero_livre ?? "" })}
+        requireText={aSupprimer ? String(aSupprimer.numero_livre) : undefined}
         confirmLabel={t("tresorerie.quittances.suppr_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />

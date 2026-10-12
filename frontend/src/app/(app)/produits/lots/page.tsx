@@ -11,6 +11,7 @@ import { RemoteSelect } from "@/components/data/remote-select";
 import { SearchInput } from "@/components/data/search-input";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { Field } from "@/components/forms/field";
 import { FormDialog } from "@/components/forms/form-dialog";
 import { LotDialog } from "@/components/produits/lot-dialog";
@@ -122,27 +123,20 @@ function Contenu() {
         page={liste.page} pageSize={liste.pageSize} onPageChange={liste.setPage}
         ordering={liste.ordering} onOrderingChange={liste.setOrdering}
         emptyMessage="produits.lots.vide"
-        actions={(l) =>
-          peutAgir ? (
-            <>
-              {l.statut_prod === "PLANIFIE" && (
-                <Button variant="ghost" size="icon" title={t("produits.lots.act_demarrer")} aria-label={t("produits.lots.act_demarrer")} onClick={() => setDialogue({ type: "demarrer", lot: l })}>
-                  <Play className="h-4 w-4" />
-                </Button>
-              )}
-              {l.statut_prod === "EN_COURS" && (
-                <Button variant="ghost" size="icon" title={t("produits.lots.act_terminer")} aria-label={t("produits.lots.act_terminer")} onClick={() => setDialogue({ type: "terminer", lot: l })}>
-                  <CheckCircle2 className="h-4 w-4" />
-                </Button>
-              )}
-              {(l.statut_prod === "PLANIFIE" || l.statut_prod === "EN_COURS") && (
-                <Button variant="ghost" size="icon" title={t("produits.lots.act_annuler")} aria-label={t("produits.lots.act_annuler")} onClick={() => setDialogue({ type: "annuler", lot: l })}>
-                  <Ban className="h-4 w-4 text-destructive" />
-                </Button>
-              )}
-            </>
-          ) : null
-        }
+        rowActions={(l) => {
+          if (!peutAgir) return [];
+          return [
+            ...(l.statut_prod === "PLANIFIE"
+              ? [{ key: "demarrer", label: t("produits.lots.act_demarrer"), icon: Play, onSelect: () => setDialogue({ type: "demarrer", lot: l }) }]
+              : []),
+            ...(l.statut_prod === "EN_COURS"
+              ? [{ key: "terminer", label: t("produits.lots.act_terminer"), icon: CheckCircle2, onSelect: () => setDialogue({ type: "terminer", lot: l }) }]
+              : []),
+            ...(l.statut_prod === "PLANIFIE" || l.statut_prod === "EN_COURS"
+              ? [{ key: "annuler", label: t("produits.lots.act_annuler"), icon: Ban, danger: true, onSelect: () => setDialogue({ type: "annuler", lot: l }) }]
+              : []),
+          ];
+        }}
       />
 
       {dialogue?.type === "creer" && <LotDialog onClose={() => setDialogue(null)} />}
@@ -254,13 +248,13 @@ function AnnulerDialog({ lot, onClose }: { lot: Lot; onClose: () => void }) {
   }
 
   return (
-    <ConfirmDialog
+    <DangerConfirm
       open
       onOpenChange={(o) => !o && onClose()}
       title={t("produits.lots.annuler_titre", { lot: lot.num_lot })}
       description={t("produits.lots.annuler_desc", { effet, suffixe: lot.statut_prod === "EN_COURS" ? t("produits.lots.annuler_suffixe_encours") : "" })}
+      requireText={lot.num_lot}
       confirmLabel={t("produits.lots.annuler_btn")}
-      destructive
       loading={annuler.isPending}
       onConfirm={confirmer}
     />

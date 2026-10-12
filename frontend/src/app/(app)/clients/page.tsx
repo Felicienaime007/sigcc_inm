@@ -13,6 +13,7 @@ import { DataTable, type Column } from "@/components/data/data-table";
 import { FilterSelect } from "@/components/data/filter-select";
 import { SearchInput } from "@/components/data/search-input";
 import { ConfirmDialog } from "@/components/forms/confirm-dialog";
+import { DangerConfirm } from "@/components/forms/danger-confirm";
 import { usePagedList } from "@/hooks/use-paged-list";
 import { useAuth } from "@/lib/auth-context";
 import { TYPES_CLIENT, estSoa, peutGerer, typesGerables, typesVisibles } from "@/lib/clients";
@@ -173,20 +174,14 @@ function Contenu() {
         ordering={liste.ordering}
         onOrderingChange={liste.setOrdering}
         emptyMessage="clients.liste.vide"
-        actions={(c) => (
-          <>
-            {peutGerer(can, c.type_client, "update") && (
-              <Button variant="ghost" size="icon" title={t("clients.liste.modifier")} aria-label={t("clients.liste.modifier")} onClick={() => setEdition({ mode: "edit", item: c })}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {peutGerer(can, c.type_client, "delete") && (
-              <Button variant="ghost" size="icon" title={t("clients.liste.supprimer")} aria-label={t("clients.liste.supprimer")} onClick={() => setASupprimer(c)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            )}
-          </>
-        )}
+        rowActions={(c) => [
+          ...(peutGerer(can, c.type_client, "update")
+            ? [{ key: "modifier", label: t("clients.liste.modifier"), icon: Pencil, onSelect: () => setEdition({ mode: "edit", item: c }) }]
+            : []),
+          ...(peutGerer(can, c.type_client, "delete")
+            ? [{ key: "supprimer", label: t("clients.liste.supprimer"), icon: Trash2, danger: true, onSelect: () => setASupprimer(c) }]
+            : []),
+        ]}
       />
 
       <ClientFormDialog
@@ -196,13 +191,12 @@ function Contenu() {
         typeImpose={seulementComptoir ? "SIMPLE" : undefined}
       />
 
-      <ConfirmDialog
+      <DangerConfirm
         open={aSupprimer !== null}
         onOpenChange={(o) => !o && setASupprimer(null)}
         title={t("clients.liste.suppr_titre")}
         description={t("clients.liste.suppr_desc", { nom: aSupprimer?.nom_client ?? "" })}
         confirmLabel={t("clients.liste.supprimer_btn")}
-        destructive
         loading={crud.remove.isPending}
         onConfirm={supprimer}
       />
