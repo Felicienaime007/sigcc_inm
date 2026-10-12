@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RemoteSelect } from "@/components/data/remote-select";
 import { Field } from "@/components/forms/field";
-import { FormDialog } from "@/components/forms/form-dialog";
+import { AmountInput } from "@/components/forms/amount-input";
+import { WizardDialog, type WizardStep } from "@/components/forms/wizard-dialog";
 import { api } from "@/lib/api";
 import { versNombre } from "@/lib/clients";
 import { entierPositif } from "@/lib/commercial";
@@ -206,149 +207,200 @@ export function ReglementDialog({
   const erreurs = form.formState.errors;
   const livreChoisi = form.watch("livre");
 
+  async function validerChamps(noms: (keyof FormValues)[]): Promise<string | null> {
+    await form.trigger(noms);
+    for (const nom of noms) {
+      const message = form.getFieldState(nom).error?.message;
+      if (message) return message;
+    }
+    return t("tresorerie.reglement.err_etape");
+  }
+
+  const etapes: WizardStep[] = useMemo(
+    () =>
+      mode === "virement"
+        ? [
+            { label: t("tresorerie.reglement.etape_montant"), validate: () => validerChamps(["montant"]) },
+            { label: t("tresorerie.reglement.etape_reference"), validate: () => validerChamps(["num_virement"]) },
+          ]
+        : [
+            { label: t("tresorerie.reglement.etape_montant"), validate: () => validerChamps(["montant", "mode_reglement"]) },
+            { label: t("tresorerie.reglement.etape_caisse"), validate: () => validerChamps(["caisse"]) },
+            { label: t("tresorerie.reglement.etape_quittance"), validate: () => validerChamps(["livre", "num_feuille", "attribut_volet"]) },
+          ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mode, t],
+  );
+
+  const resume = (
+    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium">{facture.num_facture}</p>
+          <p className="text-xs text-muted-foreground">{facture.nom_client}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">{t("tresorerie.reglement.reste")}</p>
+          <p className="text-lg font-semibold tabular-nums">{formatAr(reste)}</p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <FormDialog
+    <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
       title={mode === "virement" ? t("tresorerie.reglement.titre_virement") : t("tresorerie.reglement.titre_caisse")}
-      onSubmit={envoyer}
+      steps={etapes}
+      submitLabel={mode === "virement" ? t("tresorerie.reglement.submit_virement") : t("tresorerie.reglement.submit_caisse")}
       submitting={creer.isPending}
       error={erreurServeur}
-      submitLabel={mode === "virement" ? t("tresorerie.reglement.submit_virement") : t("tresorerie.reglement.submit_caisse")}
-      wide
+      onSubmit={() => void envoyer()}
     >
-      <div className="rounded-md border bg-muted/30 p-3 text-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="font-medium">{facture.num_facture}</p>
-            <p className="text-xs text-muted-foreground">{facture.nom_client}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">{t("tresorerie.reglement.reste")}</p>
-            <p className="text-lg font-semibold tabular-nums">{formatAr(reste)}</p>
-          </div>
-        </div>
-      </div>
-
-      <Field
-        label={t("tresorerie.reglement.champ_montant")}
-        htmlFor="montant"
-        error={erreurs.montant?.message}
-        hint={t("tresorerie.reglement.hint_montant")}
-      >
-        <div className="flex gap-2">
-          <Input id="montant" inputMode="decimal" autoFocus {...form.register("montant")} />
-          <Button type="button" variant="outline" onClick={() => form.setValue("montant", String(reste))}>
-            {t("tresorerie.reglement.solde")}
-          </Button>
-        </div>
-      </Field>
-
-      {mode === "virement" ? (
-        <Field
-          label={t("tresorerie.reglement.champ_num_virement")}
-          htmlFor="num_virement"
-          error={erreurs.num_virement?.message}
-          hint={t("tresorerie.reglement.hint_virement")}
-        >
-          <Input id="num_virement" {...form.register("num_virement")} />
-        </Field>
-      ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t("tresorerie.reglement.champ_mode")} error={erreurs.mode_reglement?.message}>
-              <Controller
-                control={form.control}
-                name="mode_reglement"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange} items={{ ESPECES: t("tresorerie.modes.especes"), CHEQUE: t("tresorerie.modes.cheque") }}>
-                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ESPECES">{t("tresorerie.modes.especes")}</SelectItem>
-                      <SelectItem value="CHEQUE">{t("tresorerie.modes.cheque")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
-            <Field label={t("tresorerie.reglement.champ_caisse")} error={erreurs.caisse?.message}>
-              <Controller
-                control={form.control}
-                name="caisse"
-                render={({ field }) => (
-                  <RemoteSelect<Caisse>
-                    path="tresorerie/caisses"
-                    value={field.value}
-                    onChange={field.onChange}
-                    getValue={(c) => c.id_caisse}
-                    getLabel={(c) => `${c.code_caisse} — ${c.libelle_caisse}`}
-                    placeholder={t("tresorerie.reglement.choisir_caisse")}
-                  />
-                )}
-              />
-            </Field>
-          </div>
-
-          <div className="rounded-md border p-3">
-            <p className="mb-3 text-sm font-medium">{t("tresorerie.reglement.quittance_titre")}</p>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={t("tresorerie.reglement.champ_carnet")} error={erreurs.livre?.message}>
+      {(etape) => (
+        <div className="space-y-4">
+          {resume}
+          {(etape === 0) && (
+            <Field
+              label={t("tresorerie.reglement.champ_montant")}
+              htmlFor="montant"
+              error={erreurs.montant?.message}
+              hint={t("tresorerie.reglement.hint_montant")}
+            >
+              <div className="flex gap-2">
                 <Controller
                   control={form.control}
-                  name="livre"
+                  name="montant"
                   render={({ field }) => (
-                    <RemoteSelect<Livre>
-                      path="tresorerie/livres"
-                      params={{ statut: "EN_COURS" }}
-                      value={field.value}
-                      onChange={(id) => {
-                        field.onChange(id);
-                        if (id !== null) void suggerer(id);
-                      }}
-                      getValue={(l) => l.id_livre}
-                      getLabel={(l) => t("tresorerie.reglement.carnet_label", { numero: l.numero_livre, restants: l.nb_restantes })}
-                      placeholder={t("tresorerie.reglement.carnet_encours")}
+                    <AmountInput
+                      id="montant"
+                      value={field.value.trim() === "" ? null : versNombre(field.value)}
+                      onChange={(v) => field.onChange(v === null ? "" : String(v))}
+                      onBlur={field.onBlur}
+                      name={field.name}
                     />
                   )}
                 />
+                <Button type="button" variant="outline" onClick={() => form.setValue("montant", String(reste))}>
+                  {t("tresorerie.reglement.solde")}
+                </Button>
+              </div>
+            </Field>
+          )}
+
+          {mode === "virement" ? (
+            etape === 1 && (
+              <Field
+                label={t("tresorerie.reglement.champ_num_virement")}
+                htmlFor="num_virement"
+                error={erreurs.num_virement?.message}
+                hint={t("tresorerie.reglement.hint_virement")}
+              >
+                <Input id="num_virement" {...form.register("num_virement")} />
               </Field>
-              <Field label={t("tresorerie.reglement.champ_feuille")} htmlFor="num_feuille" error={erreurs.num_feuille?.message}>
-                <Input id="num_feuille" inputMode="numeric" {...form.register("num_feuille")} />
-              </Field>
-              <Field label={t("tresorerie.reglement.champ_volet")} error={erreurs.attribut_volet?.message}>
-                <div className="flex gap-2">
+            )
+          ) : (
+            <>
+              {etape === 0 && (
+                <Field label={t("tresorerie.reglement.champ_mode")} error={erreurs.mode_reglement?.message}>
                   <Controller
                     control={form.control}
-                    name="attribut_volet"
+                    name="mode_reglement"
                     render={({ field }) => (
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        items={Object.fromEntries(VOLETS.map((v) => [v, v]))}
-                      >
-                        <SelectTrigger className="w-full"><SelectValue placeholder={t("tresorerie.reglement.ph_volet")} /></SelectTrigger>
+                      <Select value={field.value} onValueChange={field.onChange} items={{ ESPECES: t("tresorerie.modes.especes"), CHEQUE: t("tresorerie.modes.cheque") }}>
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {VOLETS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                          <SelectItem value="ESPECES">{t("tresorerie.modes.especes")}</SelectItem>
+                          <SelectItem value="CHEQUE">{t("tresorerie.modes.cheque")}</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
                   />
-                  <Button
-                    type="button" variant="outline" size="icon" title={t("tresorerie.reglement.suggerer")} aria-label={t("tresorerie.reglement.suggerer")}
-                    disabled={livreChoisi === null}
-                    onClick={() => livreChoisi !== null && void suggerer(livreChoisi)}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+                </Field>
+              )}
+              {etape === 1 && (
+                <Field label={t("tresorerie.reglement.champ_caisse")} error={erreurs.caisse?.message}>
+                  <Controller
+                    control={form.control}
+                    name="caisse"
+                    render={({ field }) => (
+                      <RemoteSelect<Caisse>
+                        path="tresorerie/caisses"
+                        value={field.value}
+                        onChange={field.onChange}
+                        getValue={(c) => c.id_caisse}
+                        getLabel={(c) => `${c.code_caisse} — ${c.libelle_caisse}`}
+                        placeholder={t("tresorerie.reglement.choisir_caisse")}
+                      />
+                    )}
+                  />
+                </Field>
+              )}
+              {etape === 2 && (
+                <div className="rounded-md border p-3">
+                  <p className="mb-3 text-sm font-medium">{t("tresorerie.reglement.quittance_titre")}</p>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Field label={t("tresorerie.reglement.champ_carnet")} error={erreurs.livre?.message}>
+                      <Controller
+                        control={form.control}
+                        name="livre"
+                        render={({ field }) => (
+                          <RemoteSelect<Livre>
+                            path="tresorerie/livres"
+                            params={{ statut: "EN_COURS" }}
+                            value={field.value}
+                            onChange={(id) => {
+                              field.onChange(id);
+                              if (id !== null) void suggerer(id);
+                            }}
+                            getValue={(l) => l.id_livre}
+                            getLabel={(l) => t("tresorerie.reglement.carnet_label", { numero: l.numero_livre, restants: l.nb_restantes })}
+                            placeholder={t("tresorerie.reglement.carnet_encours")}
+                          />
+                        )}
+                      />
+                    </Field>
+                    <Field label={t("tresorerie.reglement.champ_feuille")} htmlFor="num_feuille" error={erreurs.num_feuille?.message}>
+                      <Input id="num_feuille" inputMode="numeric" {...form.register("num_feuille")} />
+                    </Field>
+                    <Field label={t("tresorerie.reglement.champ_volet")} error={erreurs.attribut_volet?.message}>
+                      <div className="flex gap-2">
+                        <Controller
+                          control={form.control}
+                          name="attribut_volet"
+                          render={({ field }) => (
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              items={Object.fromEntries(VOLETS.map((v) => [v, v]))}
+                            >
+                              <SelectTrigger className="w-full"><SelectValue placeholder={t("tresorerie.reglement.ph_volet")} /></SelectTrigger>
+                              <SelectContent>
+                                {VOLETS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        <Button
+                          type="button" variant="outline" size="icon" title={t("tresorerie.reglement.suggerer")} aria-label={t("tresorerie.reglement.suggerer")}
+                          disabled={livreChoisi === null}
+                          onClick={() => livreChoisi !== null && void suggerer(livreChoisi)}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </Field>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t("tresorerie.reglement.hint_quittance")}
+                  </p>
                 </div>
-              </Field>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {t("tresorerie.reglement.hint_quittance")}
-            </p>
-          </div>
-        </>
+              )}
+            </>
+          )}
+        </div>
       )}
-    </FormDialog>
+    </WizardDialog>
   );
 }

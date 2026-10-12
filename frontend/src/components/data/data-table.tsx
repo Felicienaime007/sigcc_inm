@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, ArrowUpDown, Inbox, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -12,6 +13,7 @@ import { useT } from "@/lib/i18n/contexte";
 import { getErrorMessage } from "@/lib/errors";
 import type { Paginated } from "@/types/api";
 import { Pagination } from "./pagination";
+import { RowActions, type RowActionItem } from "./row-actions";
 
 export interface Column<T> {
   key: string;
@@ -36,23 +38,48 @@ interface Props<T> {
   onOrderingChange?: (ordering: string) => void;
   /** Colonne d'actions alignée à droite (boutons modifier / supprimer...). */
   actions?: (row: T) => React.ReactNode;
+  /** Raccourci LOT 1 : construit un <RowActions> par ligne (cumulable avec `actions`). */
+  rowActions?: (row: T) => RowActionItem[];
+  /** Nombre d'actions visibles avant le menu « ⋯ » (1 ou 2). */
+  rowActionsMaxVisible?: 1 | 2;
+  /** Libellé accessible du menu « ⋯ » des lignes. */
+  rowActionsMenuLabel?: string;
   emptyMessage?: string;
   /** Réessayer après une erreur de chargement. */
   onRetry?: () => void;
   /** Densité des lignes : dense par défaut (style SaaS). */
   density?: "dense" | "comfortable";
+  /** Sélection de lignes : colonne de cases + tout cocher (indéterminé géré). */
+  selection?: {
+    selectedIds: Array<string | number>;
+    onToggleId: (id: string | number) => void;
+    onTogglePage: (ids: Array<string | number>, select: boolean) => void;
+  };
+  /** Barre d'actions groupées affichée quand la sélection est non vide. */
+  bulkBar?: React.ReactNode;
 }
 
 export function DataTable<T>({
   columns, data, isLoading, isFetching, error, rowKey,
   page, pageSize, onPageChange, ordering, onOrderingChange, actions,
+  rowActions, rowActionsMaxVisible = 2, rowActionsMenuLabel,
   emptyMessage = "commun.aucun_enregistrement",
   onRetry,
   density = "dense",
+  selection,
+  bulkBar,
 }: Props<T>) {
   const { t } = useT();
-  const colSpan = columns.length + (actions ? 1 : 0);
+  const hasActionsColumn = Boolean(actions || rowActions);
+  const colSpan = columns.length + (hasActionsColumn ? 1 : 0) + (selection ? 1 : 0);
   const dense = density === "dense";
+  const lignes = data?.results ?? [];
+  const idsPage = lignes.map((row) => rowKey(row));
+  const nbSelectionnesPage = selection
+    ? idsPage.filter((id) => selection.selectedIds.includes(id)).length
+    : 0;
+  const toutCoche = selection != null && idsPage.length > 0 && nbSelectionnesPage === idsPage.length;
+  const partiel = selection != null && nbSelectionnesPage > 0 && nbSelectionnesPage < idsPage.length;
 
   function basculer(sortKey: string) {
     if (!onOrderingChange) return;
@@ -73,6 +100,17 @@ export function DataTable<T>({
         <Table className={cn(dense && "table-dense")}>
           <TableHeader className="table-sticky">
             <TableRow className="hover:bg-transparent">
+              {selection && (
+                <TableHead className="w-10 first:pl-4">
+                  <Checkbox
+                    checked={toutCoche}
+                    indeterminate={partiel}
+                    disabled={isLoading || idsPage.length === 0}
+                    onCheckedChange={(coche) => selection.onTogglePage(idsPage, coche)}
+                    aria-label={t("commun.tout_selectionner")}
+                  />
+                </TableHead>
+              )}
               {columns.map((c) => (
                 <TableHead
                   key={c.key}
@@ -95,7 +133,7 @@ export function DataTable<T>({
                   )}
                 </TableHead>
               ))}
-              {actions && (
+              {hasActionsColumn && (
                 <TableHead className="w-px text-right last:pr-4">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -148,15 +186,31 @@ export function DataTable<T>({
               !error &&
               (data?.results ?? []).map((row) => (
                 <TableRow key={rowKey(row)} className="transition-colors hover:bg-primary/[0.04]">
+                  {selection && (
+                    <TableCell className="w-10 first:pl-4">
+                      <Checkbox
+                        checked={selection.selectedIds.includes(rowKey(row))}
+                        onCheckedChange={() => selection.onToggleId(rowKey(row))}
+                        aria-label={t("commun.selection_ligne")}
+                      />
+                    </TableCell>
+                  )}
                   {columns.map((c) => (
                     <TableCell key={c.key} className={cn("px-3 first:pl-4 last:pr-4", dense ? "py-2" : "py-3", c.className)}>
                       {c.cell(row)}
                     </TableCell>
                   ))}
-                  {actions && (
+                  {hasActionsColumn && (
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-0.5 opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100">
-                        {actions(row)}
+                      <div className="flex justify-end gap-1 opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100">
+                        {actions?.(row)}
+                        {rowActions && (
+                          <RowActions
+                            items={rowActions(row)}
+                            maxVisible={rowActionsMaxVisible}
+                            menuLabel={rowActionsMenuLabel}
+                          />
+                        )}
                       </div>
                     </TableCell>
                   )}
@@ -170,6 +224,8 @@ export function DataTable<T>({
         page={page} pageSize={pageSize} count={data?.count ?? 0}
         onPageChange={onPageChange} disabled={isFetching}
       />
+
+      {selection && selection.selectedIds.length > 0 && bulkBar}
     </div>
   );
 }
