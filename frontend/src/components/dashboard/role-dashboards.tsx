@@ -157,7 +157,7 @@ const COMPTABLE: RoleDashboardDef = {
   description: "dash.roles.comptable.description",
   kpis: [
     { key: "virements", label: "dash.kpi.virements", path: "commercial/factures", params: () => ({ type_facturation: "VIREMENT_TRESOR", statut: "NON_PAYEE" }), privilege: "facture.view", href: "/commercial/factures", ton: "attention", live: true },
-    { key: "a-facturer", label: "dash.kpi.a_facturer", path: "commercial/commandes", params: () => ({ statut: "LIVREE" }), privilege: "commande.view", href: "/commercial/factures", ton: "attention" },
+    { key: "a-facturer", label: "dash.kpi.a_facturer", path: "commercial/commandes", params: () => ({ statuts: "VALIDEE,EN_PREPARATION,LIVREE" }), privilege: "commande.view", href: "/commercial/factures", ton: "attention" },
     { key: "partielles", label: "dash.kpi.partiels", path: "commercial/factures", params: () => ({ statut: "PARTIELLE" }), privilege: "facture.view", href: "/commercial/factures" },
     { key: "engagements", label: "dash.kpi.engagements", path: "budget/engagements", params: () => ({ statut: "VISE" }), privilege: "engagement.view", href: "/budget/engagements" },
     { key: "bloques", label: "dash.kpi.bloques_prives", path: "clients/solvabilites", params: () => ({ statut_blocage: "1" }), privilege: "solvabilite.view", href: "/clients/solvabilites", ton: "danger" },
@@ -179,7 +179,7 @@ const COMPTABLE: RoleDashboardDef = {
     }),
     queue<CommandeRow>({
       title: "dash.file.a_facturer", path: "commercial/commandes",
-      params: () => ({ statut: "LIVREE" }), privilege: "commande.view", href: "/commercial/factures",
+      params: () => ({ statuts: "VALIDEE,EN_PREPARATION,LIVREE" }), privilege: "commande.view", href: "/commercial/factures",
       empty: "dash.file.vide_facturation", row: commandeRow,
     }),
   ],
