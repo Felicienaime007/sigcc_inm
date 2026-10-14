@@ -115,6 +115,11 @@ DATABASES = {
         "OPTIONS": {
             "service_name": os.getenv("DB_NAME"),
         },
+        # Connexions persistantes : chaque worker garde sa session Oracle au lieu
+        # d'en rouvrir une à chaque requête (rafale du tableau de bord après login).
+        # CONN_HEALTH_CHECKS évite de réutiliser une connexion coupée (Oracle/OOM).
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "300")),
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 

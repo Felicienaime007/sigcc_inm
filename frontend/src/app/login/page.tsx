@@ -280,10 +280,11 @@ export default function LoginPage() {
     if (!loading && user) router.replace("/");
   }, [loading, user, router, t]);
 
-  // Précharge le tableau de bord pendant la saisie.
-  useEffect(() => {
-    router.prefetch("/");
-  }, [router]);
+  // PAS de router.prefetch("/") ici : sans marqueur de session, le middleware
+  // répond 307 vers /login et Next mettrait cette redirection en cache de
+  // préchargement. Après connexion, router.replace("/") rejouerait la
+  // redirection périmée en boucle côté client (spinner infini, zéro réseau),
+  // alors qu'un rechargement complet (cookie présent) entre aussitôt.
 
   const enAttente = loading || !!user;
 
